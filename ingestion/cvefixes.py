@@ -1,79 +1,59 @@
-import sqlite3
-from dataclasses import dataclass
+from collections import Counter
 from pathlib import Path
+
+import pandas as pd
 
 from ingestion.schema import FunctionSample
 
-_C_EXTENSIONS = (".c", ".cpp", ".cc", ".cxx", ".h", ".hpp")
+_C_LANGUAGES = {"C", "C++"}
+_NVD_PLACEHOLDERS = {"NVD-CWE-Other", "NVD-CWE-noinfo", "NVD-CWE-Other "}
 
 
-@dataclass
-class RawCVEfixesEntry:
-    code_before: str
-    cwes: list[str]
-    label: int                   # always 1 (code_before is the vulnerable version)
-    commit_hash: str
-    num_functions_in_commit: int  # derived from DB; used for single-function filter
+def extract_cvefixes(data_path: Path) -> list[FunctionSample]:
+    """Extract FunctionSamples from CVEfixes Parquet file(s).
 
+    Source: Hugging Face `hitoshura25/cvefixes` (3 Parquet shards).
+    Pass either a directory containing the `.parquet` files or a single file.
 
-def _is_c_file(filename: str) -> bool:
-    return any(filename.lower().endswith(ext) for ext in _C_EXTENSIONS)
+    Columns used: vulnerable_code, cwe_id, hash, language.
 
+    Positives: rows where
+      - language ∈ {"C", "C++"}
+      - vulnerable_code is non-empty
+      - cwe_id is non-empty and not an NVD placeholder
+      - commit hash appears in exactly one row (single-function commit filter)
 
-def extract_cvefixes(db_path: Path) -> list[FunctionSample]:
-    """Extract FunctionSamples from a CVEfixes SQLite database.
-
-    Positives: code_before entries where the file is C/C++, CWE is non-empty,
-    and the commit modified exactly one function.
-
-    Negatives: CVEfixes does not provide explicitly labeled safe samples beyond
-    before/after pairs. code_after is not used as a negative (patched code is not
-    ground-truth safe). This collection contributes positives only.
+    Negatives: none — CVEfixes does not provide explicitly labeled safe samples.
     """
-    con = sqlite3.connect(db_path)
-    con.row_factory = sqlite3.Row
+    if data_path.is_dir():
+        parts = sorted(data_path.glob("*.parquet"))
+        if not parts:
+            raise FileNotFoundError(f"No .parquet files found in {data_path}")
+        df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
+    else:
+        df = pd.read_parquet(data_path)
 
-    # Count method changes per commit (for single-function filter)
-    commit_func_counts = {
-        row["hash"]: row["cnt"]
-        for row in con.execute("""
-            SELECT c.hash, COUNT(mc.id) AS cnt
-            FROM commits c
-            JOIN file_change fc ON fc.hash = c.hash
-            JOIN method_change mc ON mc.file_change_id = fc.id
-            WHERE mc.code_before IS NOT NULL AND mc.code_before != ''
-            GROUP BY c.hash
-        """)
-    }
+    # Language filter
+    df = df[df["language"].isin(_C_LANGUAGES)].copy()
 
-    rows = con.execute("""
-        SELECT
-            mc.code_before,
-            cv.cwe_id,
-            co.hash AS commit_hash,
-            fc.filename
-        FROM method_change mc
-        JOIN file_change fc ON mc.file_change_id = fc.id
-        JOIN commits co ON fc.hash = co.hash
-        JOIN fixes f ON co.hash = f.hash
-        JOIN cve cv ON f.cve_id = cv.cve_id
-        WHERE mc.code_before IS NOT NULL
-          AND mc.code_before != ''
-          AND cv.cwe_id IS NOT NULL
-          AND cv.cwe_id != ''
-    """).fetchall()
+    # Code filter
+    df = df[df["vulnerable_code"].notna() & (df["vulnerable_code"].str.strip() != "")].copy()
 
-    con.close()
+    # CWE filter
+    df = df[df["cwe_id"].notna()].copy()
+    df = df[df["cwe_id"].str.strip() != ""].copy()
+    df = df[~df["cwe_id"].str.strip().isin(_NVD_PLACEHOLDERS)].copy()
 
-    samples = []
-    for row in rows:
-        if not _is_c_file(row["filename"]):
-            continue
-        if commit_func_counts.get(row["commit_hash"], 0) != 1:
-            continue
-        samples.append(FunctionSample(
-            code=row["code_before"],
-            cwes=[row["cwe_id"].strip()],
+    # Single-function commit filter
+    hash_counts = Counter(df["hash"])
+    single_hashes = {h for h, n in hash_counts.items() if n == 1}
+    df = df[df["hash"].isin(single_hashes)]
+
+    return [
+        FunctionSample(
+            code=str(row["vulnerable_code"]),
+            cwes=[str(row["cwe_id"]).strip()],
             label=1,
-        ))
-    return samples
+        )
+        for _, row in df.iterrows()
+    ]
