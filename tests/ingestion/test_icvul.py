@@ -1,4 +1,3 @@
-import csv
 import pytest
 from pathlib import Path
 from ingestion.icvul import extract_icvul
@@ -7,21 +6,20 @@ from ingestion.schema import FunctionSample
 
 @pytest.fixture
 def icvul_path(tmp_path):
-    # functions.csv
-    functions = tmp_path / "functions.csv"
-    functions.write_text(
-        "func_id,func_before\n"
-        "f1,void vuln_vcc() { return buf[i]; }\n"
-        "f2,void not_vcc() { return 0; }\n"
-        'f3,"void vuln_vcc2() { strcpy(dst, src); }"\n'
+    # function_info.csv — real schema: hash, code, before_change, ...
+    (tmp_path / "function_info.csv").write_text(
+        "hash,code,before_change\n"
+        'abc123,"void vuln_vcc() { return buf[i]; }",True\n'
+        'def456,"void not_vcc() { return 0; }",True\n'
+        'ghi789,"void vuln_vcc2() { strcpy(dst, src); }",True\n'
+        'abc123,"void vuln_vcc() { patched; }",False\n'  # after_change — must be excluded
     )
-    # cve_fc_vcc_mapping.csv
-    mapping = tmp_path / "cve_fc_vcc_mapping.csv"
-    mapping.write_text(
-        "cwe_id,vcc_func_id\n"
-        "CWE-119,f1\n"
-        "CWE-120,f3\n"
-        # f2 has no entry → not a VCC
+    # cve_fc_vcc_mapping.csv — vcc_hash is a JSON list string (no outer CSV quoting needed)
+    (tmp_path / "cve_fc_vcc_mapping.csv").write_text(
+        "cve_id,cwe_id,vcc_hash\n"
+        "CVE-2020-0001,CWE-119,['abc123']\n"
+        "CVE-2020-0002,CWE-120,['ghi789']\n"
+        # def456 has no mapping → not a VCC
     )
     return tmp_path
 
@@ -32,6 +30,13 @@ def test_extracts_only_vcc_functions(icvul_path):
     assert "void vuln_vcc() { return buf[i]; }" in codes
     assert "void vuln_vcc2() { strcpy(dst, src); }" in codes
     assert "void not_vcc() { return 0; }" not in codes
+
+
+def test_excludes_after_change_version(icvul_path):
+    """before_change=False rows must be excluded even if hash matches a VCC."""
+    samples = extract_icvul(icvul_path)
+    codes = [s.code for s in samples]
+    assert "void vuln_vcc() { patched; }" not in codes
 
 
 def test_no_negatives_produced(icvul_path):
@@ -48,3 +53,17 @@ def test_cwe_assigned_to_vcc_function(icvul_path):
 def test_returns_function_samples(icvul_path):
     samples = extract_icvul(icvul_path)
     assert all(isinstance(s, FunctionSample) for s in samples)
+
+
+def test_nvd_placeholder_cwes_dropped(tmp_path):
+    (tmp_path / "function_info.csv").write_text(
+        "hash,code,before_change\n"
+        'abc123,"void f() {}",True\n'
+    )
+    (tmp_path / "cve_fc_vcc_mapping.csv").write_text(
+        "cve_id,cwe_id,vcc_hash\n"
+        "CVE-2020-0001,NVD-CWE-Other,['abc123']\n"
+        "CVE-2020-0002,NVD-CWE-noinfo,['abc123']\n"
+    )
+    samples = extract_icvul(tmp_path)
+    assert samples == []
