@@ -15,6 +15,7 @@ dev = [
     "gdown>=5.0",
     "datasets>=2.0",
     "openpyxl>=3.1",
+    "ipykernel>=6.0",
 ]
 
 [tool.setuptools.packages.find]
