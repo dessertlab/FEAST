@@ -6,23 +6,32 @@ from ingestion.schema import FunctionSample
 
 
 FIXTURE = [
-    # commit "aaa": single target=1, CWE present → valid positive
+    # commit "aaa": single target=1, CWE present -> valid positive
     {"func": "void vuln() { return buf[i]; }", "cwe": "CWE-119", "target": 1,
      "commit_id": "aaa", "project": "proj"},
-    # commit "aaa": target=0 → valid negative
+    # commit "aaa": target=0 -> valid negative
     {"func": "void safe() { return 0; }", "cwe": "", "target": 0,
      "commit_id": "aaa", "project": "proj"},
-    # commit "bbb": two target=1 entries → both filtered out (multi-function commit)
+    # commit "bbb": two target=1 entries -> both filtered out (multi-function commit)
     {"func": "void vuln2() {}", "cwe": "CWE-787", "target": 1,
      "commit_id": "bbb", "project": "proj"},
     {"func": "void vuln3() {}", "cwe": "CWE-119", "target": 1,
      "commit_id": "bbb", "project": "proj"},
-    # commit "ccc": single target=1 but no CWE → filtered out
+    # commit "ccc": single target=1 but no CWE -> filtered out
     {"func": "void vuln4() {}", "cwe": "", "target": 1,
      "commit_id": "ccc", "project": "proj"},
-    # commit "ddd": single target=1, multi-CWE string → valid positive with 2 CWEs
+    # commit "ddd": single target=1, multi-CWE string -> valid positive with 2 CWEs
     {"func": "void vuln5() {}", "cwe": "['CWE-119', 'CWE-787']", "target": 1,
      "commit_id": "ddd", "project": "proj"},
+    # commit "eee": concatenated CWE string -> split into 2 CWEs
+    {"func": "void vuln6() {}", "cwe": "['CWE-20CWE-190']", "target": 1,
+     "commit_id": "eee", "project": "proj"},
+    # commit "fff": NVD placeholder -> filtered out (no valid CWE)
+    {"func": "void nvd() {}", "cwe": "['NVD-CWE-noinfo']", "target": 1,
+     "commit_id": "fff", "project": "proj"},
+    # commit "ggg": non-numeric CWE -> filtered out
+    {"func": "void other() {}", "cwe": "CWE-Other", "target": 1,
+     "commit_id": "ggg", "project": "proj"},
 ]
 
 
@@ -69,3 +78,24 @@ def test_parses_multi_cwe_string(primevul_path):
 def test_returns_function_samples(primevul_path):
     samples = extract_primevul(primevul_path)
     assert all(isinstance(s, FunctionSample) for s in samples)
+
+
+def test_splits_concatenated_cwes(primevul_path):
+    """'CWE-20CWE-190' must be split into two separate CWE IDs."""
+    samples = extract_primevul(primevul_path)
+    concat = next(s for s in samples if s.code == "void vuln6() {}")
+    assert set(concat.cwes) == {"CWE-20", "CWE-190"}
+
+
+def test_filters_nvd_placeholder(primevul_path):
+    """NVD placeholder CWEs must drop the positive entirely (no valid CWE left)."""
+    samples = extract_primevul(primevul_path)
+    codes = [s.code for s in samples]
+    assert "void nvd() {}" not in codes
+
+
+def test_filters_non_numeric_cwe(primevul_path):
+    """'CWE-Other' (no numeric suffix) must drop the positive."""
+    samples = extract_primevul(primevul_path)
+    codes = [s.code for s in samples]
+    assert "void other() {}" not in codes

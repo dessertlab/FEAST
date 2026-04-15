@@ -1,13 +1,24 @@
 import ast
+import re
 from pathlib import Path
 
 import pandas as pd
 
 from ingestion.schema import FunctionSample
 
+_NVD_PLACEHOLDERS = {"NVD-CWE-Other", "NVD-CWE-noinfo", "NVD-CWE-Other "}
+_CWE_RE = re.compile(r"CWE-\d+")
+
 
 def _parse_cwe_list(raw) -> list[str]:
-    """Parse cwe_list field, which is a stringified Python list or NaN."""
+    """Parse cwe_list field, which is a stringified Python list or NaN.
+
+    Handles:
+    - NaN / None / empty         -> []
+    - "['CWE-119']"              -> ["CWE-119"]
+    - "['CWE-20CWE-190']"        -> ["CWE-20", "CWE-190"]  (concatenated, split by regex)
+    - "['NVD-CWE-Other']"        -> []  (NVD placeholder, dropped)
+    """
     if raw is None or isinstance(raw, float):  # NaN
         return []
     raw = str(raw).strip()
@@ -15,9 +26,24 @@ def _parse_cwe_list(raw) -> list[str]:
         return []
     try:
         items = ast.literal_eval(raw)
-        return [str(c).strip() for c in items if str(c).strip()]
     except (ValueError, SyntaxError):
         return []
+
+    result = []
+    for item in items:
+        item = str(item).strip()
+        if not item or item in _NVD_PLACEHOLDERS:
+            continue
+        # Split concatenated CWE IDs (e.g. "CWE-20CWE-190" -> ["CWE-20", "CWE-190"])
+        parts = _CWE_RE.findall(item)
+        if parts:
+            result.extend(parts)
+        elif not item.startswith("CWE-"):
+            # Non-CWE string (e.g. legacy label) -- skip
+            pass
+        else:
+            result.append(item)
+    return list(dict.fromkeys(result))  # deduplicate, preserve order
 
 
 def extract_secvuleval(data_path: Path) -> list[FunctionSample]:

@@ -15,16 +15,16 @@ def _write_parquet(tmp_path: Path, rows: list[dict]) -> Path:
 @pytest.fixture
 def megavul_dir(tmp_path):
     rows = [
-        # hash_a — single-function, valid CWE, high CVSS → positive
+        # hash_a -- single-function, valid CWE, high CVSS -> positive
         {"hash": "aaa", "vulnerable_code": "void vuln() {}",     "cwe_id": "CWE-119", "cvss3_base_score": 9.8},
-        # hash_b — two functions → filtered (multi-function commit)
+        # hash_b -- two functions -> filtered (multi-function commit)
         {"hash": "bbb", "vulnerable_code": "void vuln2() {}",    "cwe_id": "CWE-787", "cvss3_base_score": 7.5},
         {"hash": "bbb", "vulnerable_code": "void vuln3() {}",    "cwe_id": "CWE-119", "cvss3_base_score": 7.5},
-        # hash_c — no CWE → filtered
+        # hash_c -- no CWE -> filtered
         {"hash": "ccc", "vulnerable_code": "void vuln4() {}",    "cwe_id": None,      "cvss3_base_score": 5.0},
-        # hash_d — single-function, low CVSS → filtered when threshold set
+        # hash_d -- single-function, low CVSS -> filtered when threshold set
         {"hash": "ddd", "vulnerable_code": "void low_cvss() {}", "cwe_id": "CWE-476", "cvss3_base_score": 3.1},
-        # hash_e — single-function, null CVSS → filtered when threshold set
+        # hash_e -- single-function, null CVSS -> filtered when threshold set
         {"hash": "eee", "vulnerable_code": "void null_cvss() {}","cwe_id": "CWE-476", "cvss3_base_score": None},
     ]
     return _write_parquet(tmp_path, rows)

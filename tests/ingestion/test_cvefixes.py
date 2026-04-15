@@ -16,18 +16,18 @@ def _write_parquet(tmp_path: Path, rows: list[dict]) -> Path:
 @pytest.fixture
 def cvefixes_dir(tmp_path):
     rows = [
-        # hash_a — single C function, valid CWE → positive
+        # hash_a -- single C function, valid CWE -> positive
         {"hash": "hash_a", "language": "C",   "vulnerable_code": "void vuln() {}",    "cwe_id": "CWE-119"},
-        # hash_b — two C functions → filtered (multi-function commit)
+        # hash_b -- two C functions -> filtered (multi-function commit)
         {"hash": "hash_b", "language": "C",   "vulnerable_code": "void multi1() {}",  "cwe_id": "CWE-787"},
         {"hash": "hash_b", "language": "C",   "vulnerable_code": "void multi2() {}",  "cwe_id": "CWE-787"},
-        # hash_c — no CWE → filtered
+        # hash_c -- no CWE -> filtered
         {"hash": "hash_c", "language": "C",   "vulnerable_code": "void no_cwe() {}",  "cwe_id": None},
-        # hash_d — C++ file, valid → positive
+        # hash_d -- C++ file, valid -> positive
         {"hash": "hash_d", "language": "C++", "vulnerable_code": "void cpp_vuln() {}","cwe_id": "CWE-476"},
-        # hash_e — Java, valid CWE → filtered (non-C/C++ language)
+        # hash_e -- Java, valid CWE -> filtered (non-C/C++ language)
         {"hash": "hash_e", "language": "Java","vulnerable_code": "void java() {}",    "cwe_id": "CWE-89"},
-        # hash_f — NVD placeholder CWE → filtered
+        # hash_f -- NVD placeholder CWE -> filtered
         {"hash": "hash_f", "language": "C",   "vulnerable_code": "void nvd() {}",     "cwe_id": "NVD-CWE-noinfo"},
     ]
     return _write_parquet(tmp_path, rows)

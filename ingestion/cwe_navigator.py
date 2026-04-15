@@ -242,7 +242,7 @@ class CWENavigator:
                     element_name = self.get_element_name(element_id)
                     element_type = self.get_element_type(element_id)
                     indent = "   " + "  " * i
-                    arrow = "└─>" if i == len(path) - 1 else "├─>"
+                    arrow = "\->" if i == len(path) - 1 else "+->"
                     highlight = " *" if element_id == cwe_id else ""
                     print(f"{indent}{arrow} CWE-{element_id}: {element_name} ({element_type}){highlight}")
 
@@ -271,7 +271,7 @@ class CWENavigator:
         else:
             for i, (id_, name, type_str) in enumerate(path):
                 indent = "  " * i
-                arrow = "└─>" if i == len(path) - 1 else "├─>"
+                arrow = "\->" if i == len(path) - 1 else "+->"
                 highlight = " (TOP)" if i == len(path) - 1 else ""
                 print(f"{indent}{arrow} CWE-{id_}: {name}{highlight}")
 
