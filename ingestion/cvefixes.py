@@ -1,17 +1,15 @@
-import re
 from collections import Counter
 from pathlib import Path
 
 import pandas as pd
 
 from ingestion.schema import FunctionSample
+from ingestion.utils import _NVD_PLACEHOLDERS, _CWE_RE
 
-_C_LANGUAGES = {"C", "C++"}
-_NVD_PLACEHOLDERS = {"NVD-CWE-Other", "NVD-CWE-noinfo", "NVD-CWE-Other "}
-_CWE_RE = re.compile(r"CWE-\d+")
+_SUPPORTED_LANGUAGES = {"C", "C++", "Java", "Python"}
 
 
-def extract_cvefixes(data_path: Path) -> list[FunctionSample]:
+def extract_cvefixes(data_path: Path, language: str = "C") -> list[FunctionSample]:
     """Extract FunctionSamples from CVEfixes Parquet file(s).
 
     Source: Hugging Face `hitoshura25/cvefixes` (3 Parquet shards).
@@ -20,12 +18,12 @@ def extract_cvefixes(data_path: Path) -> list[FunctionSample]:
     Columns used: vulnerable_code, cwe_id, hash, language.
 
     Positives: rows where
-      - language  in  {"C", "C++"}
+      - language matches the `language` parameter
       - vulnerable_code is non-empty
       - cwe_id is non-empty and not an NVD placeholder
       - commit hash appears in exactly one row (single-function commit filter)
 
-    Negatives: none -- CVEfixes does not provide explicitly labeled safe samples.
+    Negatives: none.
     """
     if data_path.is_dir():
         parts = sorted(data_path.glob("*.parquet"))
@@ -35,31 +33,39 @@ def extract_cvefixes(data_path: Path) -> list[FunctionSample]:
     else:
         df = pd.read_parquet(data_path)
 
-    # Language filter
-    df = df[df["language"].isin(_C_LANGUAGES)].copy()
+    # Map language param to dataset language values
+    if language in ("C", "C++"):
+        lang_filter = {"C", "C++"}
+    else:
+        lang_filter = {language}
 
-    # Code filter
+    df = df[df["language"].isin(lang_filter)].copy()
     df = df[df["vulnerable_code"].notna() & (df["vulnerable_code"].str.strip() != "")].copy()
 
-    # CWE filter
     df = df[df["cwe_id"].notna()].copy()
     df = df[df["cwe_id"].str.strip() != ""].copy()
     df = df[~df["cwe_id"].str.strip().isin(_NVD_PLACEHOLDERS)].copy()
 
-    # Split concatenated CWE IDs (e.g. "CWE-125CWE-787" -> ["CWE-125", "CWE-787"])
     df["cwes_parsed"] = df["cwe_id"].str.strip().apply(_CWE_RE.findall)
     df = df[df["cwes_parsed"].map(len) > 0].copy()
 
-    # Single-function commit filter
     hash_counts = Counter(df["hash"])
     single_hashes = {h for h, n in hash_counts.items() if n == 1}
     df = df[df["hash"].isin(single_hashes)]
+
+    # Normalise language label
+    if language in ("C", "C++"):
+        lang_label = "C/C++"
+    else:
+        lang_label = language
 
     return [
         FunctionSample(
             code=str(row["vulnerable_code"]),
             cwes=list(row["cwes_parsed"]),
             label=1,
+            branch="real",
+            language=lang_label,
         )
         for _, row in df.iterrows()
     ]

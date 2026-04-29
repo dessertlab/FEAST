@@ -1,0 +1,79 @@
+import re
+from pathlib import Path
+
+from ingestion.schema import FunctionSample
+
+_CWE_DIR_RE = re.compile(r"CWE[-_]?(\d+)", re.IGNORECASE)
+
+_LANG_EXTS = {
+    "C/C++":  {".c", ".cpp", ".cc", ".h"},
+    "Python": {".py"},
+}
+
+
+def _cwe_from_path(path: Path) -> str | None:
+    for part in path.parts:
+        m = _CWE_DIR_RE.search(part)
+        if m:
+            return f"CWE-{int(m.group(1))}"
+    return None
+
+
+def extract_llmseceval(
+    data_path: Path,
+    language: str = "C/C++",
+) -> list[FunctionSample]:
+    """Extract FunctionSamples from LLMSecEval directory structure.
+
+    Source: GitHub `giltrust/LLMSecEval`.
+
+    Structure:
+      data_path/
+        CWE-NNN/
+          <vulnerable_file>.c   -- label=1
+          Secure/
+            <safe_file>.c       -- label=0
+
+    language parameter accepts: "C/C++", "Python".
+    """
+    if not data_path.exists():
+        raise FileNotFoundError(f"LLMSecEval directory not found: {data_path}")
+
+    exts = _LANG_EXTS.get(language, set())
+    samples: list[FunctionSample] = []
+
+    for cwe_dir in data_path.iterdir():
+        if not cwe_dir.is_dir():
+            continue
+        cwe = _cwe_from_path(cwe_dir)
+        if not cwe:
+            continue
+
+        secure_dir = cwe_dir / "Secure"
+
+        for fpath in cwe_dir.iterdir():
+            if fpath.is_dir():
+                continue
+            if fpath.suffix.lower() not in exts:
+                continue
+            code = fpath.read_text(encoding="utf-8", errors="replace").strip()
+            if not code:
+                continue
+            samples.append(FunctionSample(
+                code=code, cwes=[cwe], label=1,
+                branch="ai", language=language,
+            ))
+
+        if secure_dir.exists():
+            for fpath in secure_dir.iterdir():
+                if fpath.suffix.lower() not in exts:
+                    continue
+                code = fpath.read_text(encoding="utf-8", errors="replace").strip()
+                if not code:
+                    continue
+                samples.append(FunctionSample(
+                    code=code, cwes=[], label=0,
+                    branch="ai", language=language,
+                ))
+
+    return samples

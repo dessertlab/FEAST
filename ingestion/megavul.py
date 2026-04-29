@@ -1,13 +1,10 @@
-import re
 from collections import Counter
 from pathlib import Path
 
 import pandas as pd
 
 from ingestion.schema import FunctionSample
-
-_NVD_PLACEHOLDERS = {"NVD-CWE-Other", "NVD-CWE-noinfo", "NVD-CWE-Other "}
-_CWE_RE = re.compile(r"CWE-\d+")
+from ingestion.utils import _NVD_PLACEHOLDERS, _CWE_RE
 
 
 def extract_megavul(
@@ -27,7 +24,7 @@ def extract_megavul(
       - commit hash appears in exactly one row (single-function commit filter)
       - if cvss_threshold is set: cvss3_base_score >= threshold (null rows dropped)
 
-    Negatives: none -- MegaVul does not provide explicitly labeled safe samples.
+    Negatives: none.
     """
     if data_path.is_dir():
         parts = sorted(data_path.glob("*.parquet"))
@@ -37,24 +34,19 @@ def extract_megavul(
     else:
         df = pd.read_parquet(data_path)
 
-    # Code filter
     df = df[df["vulnerable_code"].notna() & (df["vulnerable_code"].str.strip() != "")].copy()
 
-    # CWE filter
     df = df[df["cwe_id"].notna()].copy()
     df = df[df["cwe_id"].str.strip() != ""].copy()
     df = df[~df["cwe_id"].str.strip().isin(_NVD_PLACEHOLDERS)].copy()
 
-    # Split concatenated CWE IDs (e.g. "CWE-125CWE-787" -> ["CWE-125", "CWE-787"])
     df["cwes_parsed"] = df["cwe_id"].str.strip().apply(_CWE_RE.findall)
     df = df[df["cwes_parsed"].map(len) > 0].copy()
 
-    # CVSS threshold filter
     if cvss_threshold is not None:
         df = df[df["cvss3_base_score"].notna()].copy()
         df = df[df["cvss3_base_score"] >= cvss_threshold].copy()
 
-    # Single-function commit filter
     hash_counts = Counter(df["hash"])
     single_hashes = {h for h, n in hash_counts.items() if n == 1}
     df = df[df["hash"].isin(single_hashes)]
@@ -64,6 +56,8 @@ def extract_megavul(
             code=str(row["vulnerable_code"]),
             cwes=list(row["cwes_parsed"]),
             label=1,
+            branch="real",
+            language="C/C++",
         )
         for _, row in df.iterrows()
     ]
