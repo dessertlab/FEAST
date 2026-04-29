@@ -70,6 +70,13 @@ def extract_cwebench_java(data_path: Path) -> list[FunctionSample]:
         return samples
 
     # Layout 2: directory tree  <cwe>/<project>/vulnerable.java
+    cwe_dirs_found = [d for d in data_path.iterdir() if d.is_dir() and _normalise_cwe(d.name)]
+    if not cwe_dirs_found:
+        raise FileNotFoundError(
+            f"No CWE directories found in {data_path}. "
+            "Run the CWE-Bench-Java extraction scripts first."
+        )
+
     for cwe_dir in sorted(data_path.iterdir()):
         if not cwe_dir.is_dir():
             continue

@@ -62,12 +62,14 @@ def extract_vul4j(data_path: Path) -> list[FunctionSample]:
         return samples
 
     # Standard layout: CSV + extracted/<vul_id>/vulnerable|fixed
-    csv_path = data_path / "vul4j_dataset.csv"
-    if not csv_path.exists():
+    # CSV may be in a dataset/ subdir (actual repo layout)
+    csv_candidates = list(data_path.rglob("vul4j_dataset.csv"))
+    if not csv_candidates:
         raise FileNotFoundError(
             f"vul4j_dataset.csv not found in {data_path}. "
             "Run the Vul4J reproduction scripts first."
         )
+    csv_path = csv_candidates[0]
 
     cwe_by_id: dict[str, str] = {}
     with open(csv_path, encoding="utf-8") as fh:
@@ -78,7 +80,7 @@ def extract_vul4j(data_path: Path) -> list[FunctionSample]:
             if vul_id and cwe:
                 cwe_by_id[vul_id] = cwe
 
-    extracted_dir = data_path / "extracted"
+    extracted_dir = csv_path.parent / "extracted"
     if not extracted_dir.exists():
         raise FileNotFoundError(
             f"extracted/ directory not found in {data_path}. "
