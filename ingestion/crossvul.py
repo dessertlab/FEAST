@@ -31,7 +31,7 @@ def extract_crossvul(
     language parameter accepts: "C/C++", "Java", "Python".
     """
     if data_path.is_dir():
-        parts = sorted(data_path.glob("*.parquet"))
+        parts = sorted(data_path.rglob("*.parquet"))
         if not parts:
             raise FileNotFoundError(f"No .parquet files found in {data_path}")
         df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)

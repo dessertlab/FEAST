@@ -32,7 +32,7 @@ def extract_synth_vuln_fixes(data_path: Path) -> list[FunctionSample]:
     Negatives: fixed_code, cwes=[].
     """
     if data_path.is_dir():
-        parts = sorted(data_path.glob("*.parquet"))
+        parts = sorted(data_path.rglob("*.parquet"))
         if not parts:
             raise FileNotFoundError(f"No .parquet files found in {data_path}")
         df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
