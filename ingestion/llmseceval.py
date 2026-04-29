@@ -25,9 +25,11 @@ def extract_llmseceval(
 ) -> list[FunctionSample]:
     """Extract FunctionSamples from LLMSecEval directory structure.
 
-    Source: GitHub `giltrust/LLMSecEval`.
+    Sources:
+      - Vulnerable: Zenodo record 5225651 (copilot-cwe-scenarios-dataset)
+      - Safe: GitHub tuhh-softsec/LLMSecEval (Dataset/Secure Code Samples)
 
-    Structure:
+    Structure (after download notebook reorganisation):
       data_path/
         CWE-NNN/
           <vulnerable_file>.c   -- label=1
