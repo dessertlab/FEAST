@@ -1,9 +1,12 @@
+import re
 from pathlib import Path
 
 import pandas as pd
 
 from ingestion.schema import FunctionSample
 from ingestion.utils import _CWE_RE, _NVD_PLACEHOLDERS
+
+_CODE_BLOCK_RE = re.compile(r"Original Code:.*?```[^\n]*\n(.*?)```", re.DOTALL)
 
 
 def _normalise_cwe(raw: str) -> str:
@@ -22,14 +25,13 @@ def extract_synth_vuln_fixes(data_path: Path) -> list[FunctionSample]:
 
     Source: HuggingFace `patched-codes/synth-vuln-fixes`.
 
-    Expected Parquet schema (columns probed in priority order):
-      - cwe / cwe_id / weakness      : CWE identifier
-      - vulnerable_code / vuln_code  : vulnerable function
-      - fixed_code / patched_code    : fixed function
-      - language                     : programming language (filter: Python)
+    Each row has a single `messages` column with 3 entries:
+      [0] system prompt
+      [1] user: vulnerability report (contains CWE) + original vulnerable code block
+      [2] assistant: fixed code
 
-    Positives: vulnerable_code with non-empty CWE.
-    Negatives: fixed_code, cwes=[].
+    Positives: code from "Original Code:" block, CWE from report.
+    Negatives: assistant fixed code, cwes=[].
     """
     if data_path.is_dir():
         parts = sorted(data_path.rglob("*.parquet"))
@@ -39,44 +41,31 @@ def extract_synth_vuln_fixes(data_path: Path) -> list[FunctionSample]:
     else:
         df = pd.read_parquet(data_path)
 
-    cols = set(df.columns)
-
-    # CWE column
-    cwe_col = next((c for c in ("cwe", "cwe_id", "weakness", "CWE") if c in cols), None)
-    # Code columns
-    vuln_col  = next((c for c in ("vulnerable_code", "vuln_code", "vulnerable") if c in cols), None)
-    fixed_col = next((c for c in ("fixed_code", "patched_code", "fixed") if c in cols), None)
-    # Language column
-    lang_col  = next((c for c in ("language", "lang", "Language") if c in cols), None)
-
-    if not vuln_col:
-        raise ValueError(f"Could not find vulnerable code column in {data_path}. Columns: {list(cols)}")
-
-    # Language filter: keep Python rows if column present
-    if lang_col:
-        df = df[df[lang_col].str.lower().str.strip() == "python"].copy()
-
     samples: list[FunctionSample] = []
 
     for _, row in df.iterrows():
-        cwe_raw = str(row[cwe_col]) if cwe_col else ""
-        cwe = _normalise_cwe(cwe_raw)
+        msgs = row["messages"]
+        if len(msgs) < 3:
+            continue
+        user_text = msgs[1].get("content", "")
+        fixed_code = str(msgs[2].get("content", "") or "").strip()
+
+        cwe = _normalise_cwe(user_text)
         if not cwe or cwe in _NVD_PLACEHOLDERS:
             continue
 
-        vuln = str(row[vuln_col] or "").strip()
-        if vuln:
+        m = _CODE_BLOCK_RE.search(user_text)
+        vuln_code = m.group(1).strip() if m else ""
+
+        if vuln_code:
             samples.append(FunctionSample(
-                code=vuln, cwes=[cwe], label=1,
+                code=vuln_code, cwes=[cwe], label=1,
                 branch="ai", language="Python",
             ))
-
-        if fixed_col:
-            fixed = str(row[fixed_col] or "").strip()
-            if fixed:
-                samples.append(FunctionSample(
-                    code=fixed, cwes=[], label=0,
-                    branch="ai", language="Python",
-                ))
+        if fixed_code:
+            samples.append(FunctionSample(
+                code=fixed_code, cwes=[], label=0,
+                branch="ai", language="Python",
+            ))
 
     return samples
