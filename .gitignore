@@ -52,3 +52,6 @@ desktop.ini
 
 # Git worktrees
 .worktrees/
+
+# Claude Code project config
+.claude/
