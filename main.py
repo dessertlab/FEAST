@@ -2,11 +2,14 @@
 """
 FEAST pipeline CLI
 ==================
-Synthesize vulnerability datasets with fine-grained filtering.
+Synthesize and materialize vulnerability datasets with fine-grained filtering.
 
 Stage 2 operations:
-  processed/  — per-dataset CWE-filtered parquets
-  merged/     — deduplicated, cross-source parquets
+  processed/      -- per-dataset CWE-filtered parquets
+  merged/         -- deduplicated, cross-source parquets
+
+Stage 3 operation:
+  materialized/   -- individual source files for static analysis tools
 
 Usage:
   python main.py synthesize                                   # all langs, all sources, default CWE filter
@@ -16,6 +19,8 @@ Usage:
   python main.py synthesize --cwes CWE-79,CWE-89,CWE-22      # specific CWE whitelist
   python main.py synthesize --min-cwe-count 20                # drop sparse CWEs post-merge
   python main.py synthesize --branches real,synth             # exclude AI-generated
+  python main.py materialize                                  # write source files from merged parquets
+  python main.py materialize --lang python                    # Python only
   python main.py list                                         # show all sources
 """
 
@@ -35,7 +40,10 @@ ROOT       = Path(__file__).parent
 RAW_DIR    = ROOT / 'data' / 'raw'
 PROC_DIR   = ROOT / 'data' / 'processed'
 MERGED_DIR = ROOT / 'data' / 'merged'
+MAT_DIR    = ROOT / 'data' / 'materialized'
 CWE_XML    = ROOT / 'data' / 'cwec_latest.xml'
+
+_LANG_EXT = {'C/C++': '.c', 'Java': '.java', 'Python': '.py'}
 
 BRANCH_PRIORITY = {'real': 0, 'synth': 1, 'ai': 2}
 _LANG_SLUG    = {'C/C++': 'c_cpp', 'Java': 'java', 'Python': 'python'}
@@ -131,6 +139,19 @@ def _resolve_source(name: str, registry: dict) -> str | None:
     return None
 
 
+# ── ID assignment ──────────────────────────────────────────────────────────────
+
+def _with_ids(loader):
+    """Wrap a loader so every FunctionSample gets a stable content-derived sample_id."""
+    def _wrapped():
+        samples = loader()
+        for s in samples:
+            if not s.sample_id:
+                s.sample_id = _hash(s.code)[:16]
+        return samples
+    return _wrapped
+
+
 # ── dataset registry ───────────────────────────────────────────────────────────
 
 def _build_registry(raw: Path) -> dict[str, dict[str, object]]:
@@ -157,7 +178,7 @@ def _build_registry(raw: Path) -> dict[str, dict[str, object]]:
             raise FileNotFoundError(f'function_info.csv not found under {raw}/icvul')
         return extract_icvul(csv.parent)
 
-    return {
+    raw_registry = {
         'C/C++': {
             'PrimeVul':       lambda: (extract_primevul(raw / 'primevul_train.jsonl') +
                                        extract_primevul(raw / 'primevul_test.jsonl')),
@@ -189,6 +210,10 @@ def _build_registry(raw: Path) -> dict[str, dict[str, object]]:
             'SecurityEval':      lambda: extract_security_eval(raw / 'security_eval'),
             'CAPEC_LLM(Python)': lambda: extract_capec_llm(raw / 'capec_llm',                   language='Python'),
         },
+    }
+    return {
+        lang: {name: _with_ids(loader) for name, loader in sources.items()}
+        for lang, sources in raw_registry.items()
     }
 
 
@@ -242,13 +267,15 @@ def _to_df(
                 continue
         else:
             valid = []
+        h = _hash(s.code)
         rows.append({
             'code': s.code, 'language': language, 'label': s.label,
             'cwes': valid,  'branch': s.branch,   'source': name,
-            'code_hash': _hash(s.code),
+            'code_hash': h,
+            'sample_id': s.sample_id or h[:16],
         })
     if not rows:
-        return pd.DataFrame(columns=['code', 'language', 'label', 'cwes', 'branch', 'source', 'code_hash'])
+        return pd.DataFrame(columns=['code', 'language', 'label', 'cwes', 'branch', 'source', 'code_hash', 'sample_id'])
     return pd.DataFrame(rows)
 
 
@@ -457,6 +484,72 @@ def cmd_list(_args) -> None:
     console.print('[dim]  --sources primevul,icvul          (slug-style also accepted)[/dim]')
 
 
+# ── materialize command ────────────────────────────────────────────────────────
+
+def cmd_materialize(args) -> None:
+    """Stage 3: write merged samples as individual source files."""
+    if args.lang.lower() == 'all':
+        langs = ALL_LANGS
+    else:
+        key = args.lang.lower()
+        if key not in _LANG_ALIASES:
+            console.print(f'[red]Unknown language:[/red] {args.lang!r}  -- choose: c, java, python, all')
+            sys.exit(1)
+        langs = [_LANG_ALIASES[key]]
+
+    total_written = 0
+
+    for language in langs:
+        ext    = _LANG_EXT[language]
+        slug   = _LANG_SLUG[language]
+        parq   = MERGED_DIR / f'{slug}_merged.parquet'
+
+        if not parq.exists():
+            console.print(f'[yellow]~[/yellow]  {language}: {parq} not found — run synthesize first')
+            continue
+
+        df = pd.read_parquet(parq)
+        if 'sample_id' not in df.columns:
+            df['sample_id'] = df['code_hash'].str[:16]
+        if 'source' not in df.columns:
+            console.print(f'[red]✗[/red]  {language}: merged parquet missing "source" column')
+            continue
+
+        lang_dir = MAT_DIR / slug
+        n_written = 0
+        n_skip    = 0
+
+        console.print()
+        console.print(Panel(f'[bold]{language}[/bold]  [dim]({len(df):,} samples)[/dim]', expand=False))
+
+        for _, row in df.iterrows():
+            dataset_dir = lang_dir / _slug(row['source'])
+            dataset_dir.mkdir(parents=True, exist_ok=True)
+            out = dataset_dir / f'{row["sample_id"]}{ext}'
+            if not args.overwrite and out.exists():
+                n_skip += 1
+                continue
+            out.write_text(row['code'], encoding='utf-8')
+            n_written += 1
+
+        # write per-language index parquet
+        index_path = lang_dir / 'index.parquet'
+        df[['sample_id', 'source', 'label', 'cwes', 'branch', 'code_hash']].to_parquet(index_path, index=False)
+
+        t = Table(box=box.SIMPLE, show_header=False, pad_edge=False)
+        t.add_column(style='dim', no_wrap=True, min_width=24)
+        t.add_column(justify='right')
+        t.add_row('Files written',   f'{n_written:,}')
+        if n_skip:
+            t.add_row('Skipped (exist)', f'{n_skip:,}')
+        t.add_row('[green]Index saved[/green]', str(index_path.relative_to(ROOT)))
+        console.print(t)
+        total_written += n_written
+
+    console.print()
+    console.print(f'[bold green]Done.[/bold green]  {total_written:,} file(s) written  ->  data/materialized/')
+
+
 # ── argument parser ────────────────────────────────────────────────────────────
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -473,6 +566,8 @@ examples:
   python main.py synthesize --cwes CWE-79,CWE-89,CWE-22
   python main.py synthesize --min-cwe-count 20
   python main.py synthesize --branches real,synth
+  python main.py materialize
+  python main.py materialize --lang python
   python main.py list
 """,
     )
@@ -516,6 +611,20 @@ examples:
         help='Override raw data directory  [default: data/raw/]',
     )
 
+    # ── materialize ────────────────────────────────────────────────────────────
+    mat = sub.add_parser(
+        'materialize', aliases=['mat', 'm'],
+        help='Write merged samples as source files  ->  materialized/',
+    )
+    mat.add_argument(
+        '--lang', default='all', metavar='LANG',
+        help='Language to materialize: c, java, python, all  [default: all]',
+    )
+    mat.add_argument(
+        '--overwrite', action='store_true',
+        help='Re-write files that already exist  [default: skip existing]',
+    )
+
     # ── list ───────────────────────────────────────────────────────────────────
     sub.add_parser('list', aliases=['ls'], help='Show all available source datasets')
 
@@ -535,6 +644,8 @@ def main() -> None:
     match args.command:
         case 'synthesize' | 'synth' | 's':
             cmd_synthesize(args)
+        case 'materialize' | 'mat' | 'm':
+            cmd_materialize(args)
         case 'list' | 'ls':
             cmd_list(args)
 

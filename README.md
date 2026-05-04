@@ -18,12 +18,15 @@ Stage 1  Statistics       01_c_cpp.ipynb | 01_java.ipynb | 01_python.ipynb
 Stage 2  Synthesis        02_synthesis.ipynb | main.py synthesize
            CWE-filter + deduplicate    ->  data/processed/  and  data/merged/
 
-Stage 3  Tool execution            (planned)
-Stage 4  Per-CWE metric computation (planned)
-Stage 5  DST fusion                 (planned)
+Stage 3  Materialization  03_materialize.ipynb | main.py materialize
+           Write source files          ->  data/materialized/
+
+Stage 4  Tool execution            (planned)
+Stage 5  Per-CWE metric computation (planned)
+Stage 6  DST fusion                 (planned)
 ```
 
-Stages 0–2 are fully implemented. Stages 3–5 are planned.
+Stages 0–3 are fully implemented. Stages 4–6 are planned.
 
 ---
 
@@ -42,7 +45,8 @@ FEAST/
 │   ├── 01_c_cpp.ipynb               # Stage 1 – C/C++ statistics
 │   ├── 01_java.ipynb                # Stage 1 – Java statistics
 │   ├── 01_python.ipynb              # Stage 1 – Python statistics
-│   └── 02_synthesis.ipynb           # Stage 2 – process + merge
+│   ├── 02_synthesis.ipynb           # Stage 2 – process + merge
+│   └── 03_materialize.ipynb         # Stage 3 – write source files
 ├── data/
 │   ├── raw/                         # downloaded datasets (git-ignored)
 │   ├── cwec_latest.xml              # MITRE CWE catalogue (auto-downloaded)
@@ -50,10 +54,17 @@ FEAST/
 │   │   ├── c_cpp/
 │   │   ├── java/
 │   │   └── python/
-│   └── merged/                      # final deduplicated parquets
-│       ├── c_cpp_merged.parquet
-│       ├── java_merged.parquet
-│       └── python_merged.parquet
+│   ├── merged/                      # final deduplicated parquets
+│   │   ├── c_cpp_merged.parquet
+│   │   ├── java_merged.parquet
+│   │   └── python_merged.parquet
+│   └── materialized/                # individual source files for static analysis
+│       ├── c_cpp/
+│       │   ├── <dataset>/           # one directory per source dataset
+│       │   │   └── <id>.c           # one file per sample
+│       │   └── index.parquet        # sample_id -> source, label, cwes, branch
+│       ├── java/
+│       └── python/
 ├── outputs/
 │   ├── stage1_c_cpp_stats.xlsx
 │   ├── stage1_java_stats.xlsx
@@ -129,14 +140,18 @@ class FunctionSample:
     label: int       # 1 = vulnerable,  0 = safe
     branch: str      # "real" | "synth" | "ai"
     language: str    # "C/C++" | "Java" | "Python"
+    sample_id: str   # stable content-derived ID: SHA-256(norm(code))[:16]
 ```
+
+`sample_id` is assigned at extraction time via a registry-level wrapper and is stable across runs (content-derived, not positional).
 
 Parquet files produced by Stage 2 add two columns:
 
 | Column | Description |
 |--------|-------------|
 | `source` | Dataset name (e.g. `"PyVul"`) |
-| `code_hash` | SHA-256 of normalised code (used for deduplication) |
+| `code_hash` | Full SHA-256 of normalised code (used for deduplication) |
+| `sample_id` | First 16 hex chars of `code_hash`; used as filename stem in Stage 3 |
 
 ---
 
@@ -206,6 +221,17 @@ For each language:
 1. **Process** — applies the CWE filter (leaf + non-leaf only by default) to every source; saves one parquet per dataset to `data/processed/<lang>/`
 2. **Merge** — concatenates all processed datasets, deduplicates by SHA-256 of normalised code (higher-quality branch wins: `real > synth > ai`); saves the result to `data/merged/<lang>_merged.parquet`
 
+### `03_materialize.ipynb` — Stage 3
+
+For each language reads `data/merged/<lang>_merged.parquet` and writes:
+
+- One source file per sample: `data/materialized/<lang>/<dataset>/<sample_id>.<ext>`
+- A lookup index: `data/materialized/<lang>/index.parquet` mapping `sample_id` to `source`, `label`, `cwes`, `branch`, and `code_hash`
+
+Files are skipped if they already exist (set `OVERWRITE = True` to force re-write). Existing files are never deleted.
+
+> **Java note:** Samples are function bodies extracted from CVE patches, not compilable top-level classes. Static analysis tools that require a full compilation unit will need an additional wrapping step.
+
 ---
 
 ## CLI
@@ -270,3 +296,29 @@ uv run python main.py synthesize \
 ```
 
 Output is written to `data/processed/<lang>/` (one parquet per source) and `data/merged/<lang>_merged.parquet` (final deduplicated dataset). Both directories are created automatically if they do not exist.
+
+### `materialize` — write source files for static analysis
+
+```bash
+uv run python main.py materialize [OPTIONS]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--lang LANG` | `all` | Language to materialize: `c`, `java`, `python`, or `all` |
+| `--overwrite` | off | Re-write files that already exist |
+
+Reads `data/merged/<lang>_merged.parquet` and writes one file per sample to `data/materialized/<lang>/<dataset>/<sample_id>.<ext>`. Also writes a per-language `index.parquet` lookup table. Existing files are skipped unless `--overwrite` is set.
+
+**Examples:**
+
+```bash
+# materialize all languages
+uv run python main.py materialize
+
+# Python only
+uv run python main.py materialize --lang python
+
+# force re-write all existing files
+uv run python main.py materialize --overwrite
+```
