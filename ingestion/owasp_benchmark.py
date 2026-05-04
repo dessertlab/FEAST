@@ -25,10 +25,8 @@ _CATEGORY_TO_CWE: dict[str, str] = {
 
 def _cwe_from_category(category: str) -> str | None:
     key = category.strip().lower()
-    # Try direct map first
     if key in _CATEGORY_TO_CWE:
         return _CATEGORY_TO_CWE[key]
-    # Try partial match
     for k, v in _CATEGORY_TO_CWE.items():
         if k in key:
             return v
@@ -36,7 +34,11 @@ def _cwe_from_category(category: str) -> str | None:
 
 
 def _normalise_cwe(raw: str) -> str:
-    m = _CWE_RE.search(str(raw))
+    raw = raw.strip()
+    # CSV stores bare digits (e.g. "22") rather than "CWE-22"
+    if raw.isdigit():
+        return f"CWE-{int(raw)}"
+    m = _CWE_RE.search(raw)
     if not m:
         return ""
     digits = m.group(0).replace("CWE-", "")
@@ -56,13 +58,13 @@ def extract_owasp_benchmark(
 
     Java layout:
       data_path/
-        expectedresults-1.2.csv    -- columns: # test name, category, real vulnerability, cwe
+        expectedresults-1.2.csv    -- header: # test name, category, real vulnerability, cwe, ...
         src/main/java/.../testcode/
           BenchmarkTest00001.java
 
-    Python layout (v0.1 preliminary):
+    Python layout (v0.1):
       data_path/
-        expectedresults.csv        -- columns: test name, category, real vulnerability, cwe
+        expectedresults-0.1.csv
         testcode/
           BenchmarkTest00001.py
 
@@ -70,18 +72,16 @@ def extract_owasp_benchmark(
     """
     samples: list[FunctionSample] = []
 
-    # Find the CSV results file
     csv_candidates = list(data_path.rglob("expectedresults*.csv"))
     if not csv_candidates:
         raise FileNotFoundError(f"No expectedresults*.csv found under {data_path}")
     csv_path = csv_candidates[0]
 
-    # Read expected results
-    expected: dict[str, tuple[bool, str]] = {}  # test_name -> (is_vuln, cwe)
+    # Read and clean lines: skip blank lines and comment-only lines after header
+    expected: dict[str, tuple[bool, str]] = {}
     with open(csv_path, encoding="utf-8") as fh:
         all_lines = fh.readlines()
-    # The first non-empty line is the header (may start with #); keep it.
-    # Skip subsequent lines that are pure comments (start with # but no comma).
+
     header_found = False
     lines = []
     for line in all_lines:
@@ -95,9 +95,10 @@ def extract_owasp_benchmark(
             continue
         else:
             lines.append(line)
-    reader = csv.DictReader(lines)
+
+    # skipinitialspace=True strips the leading space from column names like " category"
+    reader = csv.DictReader(lines, skipinitialspace=True)
     for row in reader:
-        # Column names vary; try both variants
         test_name = (
             row.get("# test name") or row.get("test name") or
             row.get("Test Name") or ""
@@ -110,11 +111,9 @@ def extract_owasp_benchmark(
             continue
 
         is_vuln = real_vuln in ("1", "true", "True", "TRUE", "yes")
-
         cwe = _normalise_cwe(cwe_raw) if cwe_raw else _cwe_from_category(category) or ""
         expected[test_name.lower()] = (is_vuln, cwe)
 
-    # Find source files
     ext = ".java" if language == "Java" else ".py"
     src_files = list(data_path.rglob(f"*{ext}"))
 
