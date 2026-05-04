@@ -19,3 +19,13 @@ def test_multi_cwe_sample():
     s = FunctionSample(code="void baz() {}", cwes=["CWE-119", "CWE-787"], label=1)
     assert len(s.cwes) == 2
     assert "CWE-787" in s.cwes
+
+
+def test_sample_id_defaults_empty():
+    s = FunctionSample(code="int foo(){}", cwes=[], label=0)
+    assert s.sample_id == ""
+
+
+def test_sample_id_set():
+    s = FunctionSample(code="int foo(){}", cwes=[], label=0, sample_id="abc123def456")
+    assert s.sample_id == "abc123def456"

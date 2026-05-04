@@ -2,7 +2,10 @@
 """
 FEAST pipeline CLI
 ==================
-Synthesize and materialize vulnerability datasets with fine-grained filtering.
+Download, synthesize, and materialize vulnerability datasets.
+
+Stage 0 operation:
+  download        -- fetch all datasets to data/raw/
 
 Stage 2 operations:
   processed/      -- per-dataset CWE-filtered parquets
@@ -12,6 +15,7 @@ Stage 3 operation:
   materialized/   -- individual source files for static analysis tools
 
 Usage:
+  python main.py download                                     # Stage 0: fetch all datasets
   python main.py synthesize                                   # all langs, all sources, default CWE filter
   python main.py synthesize --lang python                     # Python only
   python main.py synthesize --lang python --sources "CVEfixes(Python),PyVul"
@@ -550,6 +554,236 @@ def cmd_materialize(args) -> None:
     console.print(f'[bold green]Done.[/bold green]  {total_written:,} file(s) written  ->  data/materialized/')
 
 
+# ── download command ───────────────────────────────────────────────────────────
+
+def cmd_download(_args) -> None:
+    """Stage 0: download all 16 datasets to data/raw/."""
+    import re as _re
+    import shutil
+    import subprocess
+    import tarfile
+    import urllib.request
+    import zipfile as _zipfile
+
+    raw = RAW_DIR
+    raw.mkdir(parents=True, exist_ok=True)
+
+    def _present(path: Path) -> bool:
+        return path.exists() and (path.is_file() or any(path.iterdir()))
+
+    def _ok(label: str, detail: str = '') -> None:
+        console.print(f'  [green]✓[/green]  {label:<28}{detail}')
+
+    def _skip(label: str) -> None:
+        console.print(f'  [dim]~[/dim]  {label:<28}already present -- skipped')
+
+    def _err(label: str, msg: str) -> None:
+        console.print(f'  [red]✗[/red]  {label:<28}{msg}')
+
+    def _manual(label: str, dest: str, note: str) -> None:
+        console.print(f'  [yellow]![/yellow]  {label:<28}[bold]manual download required[/bold]')
+        console.print(f'       Download from: {note}')
+        console.print(f'       Place at:      data/raw/{dest}')
+
+    def _git_clone(url: str, dest: Path, label: str) -> None:
+        if _present(dest):
+            _skip(label)
+            return
+        dest.mkdir(parents=True, exist_ok=True)
+        r = subprocess.run(['git', 'clone', '--depth=1', url, str(dest)],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            _err(label, r.stderr.strip())
+        else:
+            _ok(label, f'{sum(1 for _ in dest.rglob("*") if _.is_file())} files')
+
+    def _hf_files(repo_id: str, files: list[str], dest: Path, label: str) -> None:
+        if _present(dest):
+            _skip(label)
+            return
+        from huggingface_hub import hf_hub_download
+        dest.mkdir(parents=True, exist_ok=True)
+        for hf_path in files:
+            local = hf_hub_download(repo_id=repo_id, filename=hf_path, repo_type='dataset')
+            shutil.copy(local, dest / Path(hf_path).name)
+        _ok(label, f'{len(files)} parquet(s)')
+
+    def _hf_snapshot(repo_id: str, dest: Path, label: str) -> None:
+        if _present(dest):
+            _skip(label)
+            return
+        from huggingface_hub import snapshot_download
+        local = snapshot_download(repo_id=repo_id, repo_type='dataset')
+        shutil.copytree(local, dest, dirs_exist_ok=True)
+        _ok(label, f'{sum(1 for _ in dest.rglob("*") if _.is_file())} files')
+
+    def _urllib_get(url: str, dest: Path, label: str) -> None:
+        if _present(dest):
+            _skip(label)
+            return
+        opener = urllib.request.build_opener()
+        opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
+        urllib.request.install_opener(opener)
+        urllib.request.urlretrieve(url, dest)
+        _ok(label, f'{dest.stat().st_size / 1e6:.0f} MB')
+
+    console.print(Panel('[bold]Stage 0 -- Download[/bold]  (data/raw/)', expand=False))
+
+    # 1. PrimeVul  (HuggingFace -- two JSONL files)
+    pv_train, pv_test = raw / 'primevul_train.jsonl', raw / 'primevul_test.jsonl'
+    if pv_train.exists() and pv_test.exists():
+        _skip('PrimeVul')
+    else:
+        from huggingface_hub import hf_hub_download
+        for split in ['primevul_train.jsonl', 'primevul_test.jsonl']:
+            local = hf_hub_download(repo_id='starsofchance/PrimeVul', filename=split, repo_type='dataset')
+            shutil.copy(local, raw / split)
+        _ok('PrimeVul', 'train + test')
+
+    # 2. ICVul  (Google Drive -- requires gdown)
+    icvul_dir = raw / 'icvul'
+    if _present(icvul_dir):
+        _skip('ICVul')
+    else:
+        import gdown
+        icvul_dir.mkdir(parents=True, exist_ok=True)
+        archive = raw / '_icvul_archive'
+        downloaded = gdown.download(id='1Bnnb7kJa8GEfyESIAuGXj2z0g8FvXgRk', output=str(archive))
+        if downloaded is None:
+            _err('ICVul', 'gdown failed -- check file permissions')
+        else:
+            arc = next(raw.glob('_icvul_archive*'))
+            if _zipfile.is_zipfile(arc):
+                with _zipfile.ZipFile(arc) as zf:
+                    zf.extractall(icvul_dir)
+            elif tarfile.is_tarfile(arc):
+                with tarfile.open(arc) as tf:
+                    tf.extractall(icvul_dir)
+            arc.unlink(missing_ok=True)
+            _ok('ICVul', 'extracted')
+
+    # 3. CVEfixes  (HuggingFace -- 3 parquet shards)
+    _hf_files('hitoshura25/cvefixes',
+              ['data/train-00000-of-00003.parquet',
+               'data/train-00001-of-00003.parquet',
+               'data/train-00002-of-00003.parquet'],
+              raw / 'cvefixes', 'CVEfixes')
+
+    # 4. MegaVul  (HuggingFace -- 2 parquet shards)
+    _hf_files('hitoshura25/megavul',
+              ['data/train-00000-of-00002.parquet',
+               'data/train-00001-of-00002.parquet'],
+              raw / 'megavul', 'MegaVul')
+
+    # 5. SecVulEval  (HuggingFace datasets library)
+    secvuleval = raw / 'secvuleval.csv'
+    if secvuleval.exists():
+        _skip('SecVulEval')
+    else:
+        from datasets import load_dataset
+        ds = load_dataset('arag0rn/SecVulEval', trust_remote_code=True)
+        df = pd.concat([ds[split].to_pandas() for split in ds], ignore_index=True)
+        df.to_csv(secvuleval, index=False)
+        _ok('SecVulEval', f'{len(df):,} rows')
+
+    # 6. CrossVul  (Zenodo -- MANUAL)
+    crossvul = raw / 'crossvul.zip'
+    if crossvul.exists():
+        _skip('CrossVul')
+    else:
+        _manual('CrossVul', 'crossvul.zip', 'Zenodo (search "CrossVul" dataset)')
+
+    # 7. SVEN  (HuggingFace)
+    _hf_snapshot('bstee615/sven', raw / 'sven', 'SVEN')
+
+    # 8-9. Juliet C/C++ and Java  (NIST SARD)
+    _urllib_get(
+        'https://samate.nist.gov/SARD/downloads/test-suites/2017-10-01-juliet-test-suite-for-c-cplusplus-v1-3.zip',
+        raw / 'juliet_c.zip', 'Juliet C/C++',
+    )
+    _urllib_get(
+        'https://samate.nist.gov/SARD/downloads/test-suites/2017-10-01-juliet-test-suite-for-java-v1-3.zip',
+        raw / 'juliet_java.zip', 'Juliet Java',
+    )
+
+    # 10. CASTLE  (GitHub)
+    _git_clone('https://github.com/CASTLE-Benchmark/CASTLE-Benchmark.git', raw / 'castle', 'CASTLE')
+
+    # 11. LLMSecEval  (Zenodo ZIP -- MANUAL; safe samples from GitHub -- automatic)
+    llmsec_dir  = raw / 'llmseceval'
+    zenodo_dir  = llmsec_dir / 'zenodo'
+    copilot_zip = raw / 'copilot-cwe-scenarios-dataset.zip'
+    zenodo_ok   = zenodo_dir.exists() and any(zenodo_dir.rglob('gen_scenario/*.py'))
+    secure_ok   = llmsec_dir.exists() and any(llmsec_dir.glob('CWE-*/Secure/*.py'))
+
+    if zenodo_ok:
+        _skip('LLMSecEval (vuln)')
+    elif copilot_zip.exists():
+        zenodo_dir.mkdir(parents=True, exist_ok=True)
+        with _zipfile.ZipFile(copilot_zip) as zf:
+            zf.extractall(zenodo_dir)
+        _ok('LLMSecEval (vuln)', 'extracted from ZIP')
+    else:
+        _manual('LLMSecEval (vuln)', 'copilot-cwe-scenarios-dataset.zip',
+                'Zenodo record 5225651')
+
+    if secure_ok:
+        _skip('LLMSecEval (safe)')
+    else:
+        github_clone = raw / '_llmseceval_github'
+        _git_clone('https://github.com/tuhh-softsec/LLMSecEval.git', github_clone, 'LLMSecEval (safe)')
+        secure_src = github_clone / 'Dataset' / 'Secure Code Samples'
+        if secure_src.exists():
+            llmsec_dir.mkdir(parents=True, exist_ok=True)
+            n = 0
+            for cwe_sub in secure_src.iterdir():
+                if not cwe_sub.is_dir():
+                    continue
+                m = _re.search(r'\d+', cwe_sub.name)
+                if not m:
+                    continue
+                dest_sec = llmsec_dir / f'CWE-{int(m.group())}' / 'Secure'
+                dest_sec.mkdir(parents=True, exist_ok=True)
+                for f in cwe_sub.iterdir():
+                    if f.is_file():
+                        shutil.copy(f, dest_sec / f.name)
+                        n += 1
+            shutil.rmtree(github_clone, ignore_errors=True)
+            _ok('LLMSecEval (safe)', f'{n} files')
+
+    # 12. OWASP Benchmark  (GitHub x2)
+    _git_clone('https://github.com/OWASP-Benchmark/BenchmarkJava.git',
+               raw / 'owasp_benchmark', 'OWASP (Java)')
+    _git_clone('https://github.com/OWASP-Benchmark/BenchmarkPython.git',
+               raw / 'owasp_benchmark_python', 'OWASP (Python)')
+
+    # 13-16. GitHub repos
+    _git_clone('https://github.com/llmForCapec/CAPECDatasetsLLM.git', raw / 'capec_llm',     'CAPEC_LLM')
+    _git_clone('https://github.com/bytedance/PatchEval.git',           raw / 'patcheval',     'PatchEval')
+    _git_clone('https://github.com/billquan/PyVul.git',                raw / 'pyvul',         'PyVul')
+    _git_clone('https://github.com/s2e-lab/SecurityEval.git',          raw / 'security_eval', 'SecurityEval')
+
+    # ── manual-download reminder ───────────────────────────────────────────────
+    pending = []
+    if not crossvul.exists():
+        pending.append(('CrossVul',         'crossvul.zip',                    'Zenodo (search "CrossVul" dataset)'))
+    if not zenodo_ok and not copilot_zip.exists():
+        pending.append(('LLMSecEval (vuln)', 'copilot-cwe-scenarios-dataset.zip', 'Zenodo record 5225651'))
+
+    console.print()
+    if pending:
+        lines = '\n\n'.join(
+            f'[bold]{name}[/bold]\n  Download from: {note}\n  Save to:       data/raw/{dest}'
+            for name, dest, note in pending
+        )
+        console.print(Panel(
+            '[bold yellow]Manual downloads still required[/bold yellow]\n\n' + lines,
+            expand=False,
+        ))
+    else:
+        console.print('[bold green]All datasets present.[/bold green]  Run [cyan]synthesize[/cyan] next.')
+
+
 # ── argument parser ────────────────────────────────────────────────────────────
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -559,6 +793,7 @@ def _build_parser() -> argparse.ArgumentParser:
         description='FEAST - vulnerability dataset pipeline CLI',
         epilog="""\
 examples:
+  python main.py download
   python main.py synthesize
   python main.py synthesize --lang python
   python main.py synthesize --lang python --sources "CVEfixes(Python),PyVul"
@@ -572,6 +807,12 @@ examples:
 """,
     )
     sub = p.add_subparsers(dest='command', required=True)
+
+    # ── download ───────────────────────────────────────────────────────────────
+    sub.add_parser(
+        'download', aliases=['dl', 'd'],
+        help='Download all datasets  ->  data/raw/',
+    )
 
     # ── synthesize ─────────────────────────────────────────────────────────────
     syn = sub.add_parser(
@@ -642,6 +883,8 @@ def main() -> None:
         RAW_DIR = args.data_dir
 
     match args.command:
+        case 'download' | 'dl' | 'd':
+            cmd_download(args)
         case 'synthesize' | 'synth' | 's':
             cmd_synthesize(args)
         case 'materialize' | 'mat' | 'm':

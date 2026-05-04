@@ -1,23 +1,28 @@
 import pytest
+from pathlib import Path
 from ingestion.llmseceval import extract_llmseceval
 from ingestion.schema import FunctionSample
 
 
 @pytest.fixture
 def llmseceval_dir(tmp_path):
-    cwe121 = tmp_path / "CWE-121"
-    cwe121.mkdir()
-    (cwe121 / "exploit.c").write_text("void vuln(){buf[200]=1;}")
-    secure = cwe121 / "Secure"
-    secure.mkdir()
-    (secure / "safe.c").write_text("void safe(){buf[0]=1;}")
+    # Vulnerable C/C++ via zenodo gen_scenario structure
+    gen_c121 = tmp_path / "zenodo" / "data" / "cwe-121" / "scenario1" / "gen_scenario"
+    gen_c121.mkdir(parents=True)
+    (gen_c121 / "test_copilot_1.c").write_text("void vuln(){buf[200]=1;}")
 
-    cwe89 = tmp_path / "CWE-89"
-    cwe89.mkdir()
-    (cwe89 / "inject.c").write_text("void sql(){query(input);}")
+    gen_c89 = tmp_path / "zenodo" / "data" / "cwe-89" / "scenario1" / "gen_scenario"
+    gen_c89.mkdir(parents=True)
+    (gen_c89 / "test_copilot_1.c").write_text("void sql(){query(input);}")
 
-    # Python file in C dir should be ignored when language=C/C++
-    (cwe121 / "script.py").write_text("import os")
+    # Python file in C gen_scenario -- ignored for C/C++
+    (gen_c121 / "script.py").write_text("import os")
+
+    # Safe Python via CWE-NNN/Secure structure
+    secure_dir = tmp_path / "CWE-121" / "Secure"
+    secure_dir.mkdir(parents=True)
+    (secure_dir / "safe.py").write_text("def safe(): pass")
+
     return tmp_path
 
 
@@ -27,8 +32,14 @@ def test_extracts_positives(llmseceval_dir):
     assert len(positives) == 2
 
 
-def test_extracts_negatives(llmseceval_dir):
+def test_no_negatives_for_c(llmseceval_dir):
+    # extractor only collects safe samples for Python, not C/C++
     samples = extract_llmseceval(llmseceval_dir, language="C/C++")
+    assert all(s.label == 1 for s in samples)
+
+
+def test_extracts_python_negatives(llmseceval_dir):
+    samples = extract_llmseceval(llmseceval_dir, language="Python")
     negatives = [s for s in samples if s.label == 0]
     assert len(negatives) == 1
     assert negatives[0].cwes == []

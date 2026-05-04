@@ -1,4 +1,4 @@
-import pandas as pd
+import zipfile
 import pytest
 from pathlib import Path
 from ingestion.crossvul import extract_crossvul
@@ -7,42 +7,52 @@ from ingestion.schema import FunctionSample
 
 @pytest.fixture
 def crossvul_path(tmp_path):
-    df = pd.DataFrame([
-        {"language": "c",      "cwe_id": "CWE-119", "vulnerable_code": "void v(){}", "fixed_code": "void f(){}"},
-        {"language": "java",   "cwe_id": "CWE-89",  "vulnerable_code": "void v(){}", "fixed_code": "void f(){}"},
-        {"language": "c",      "cwe_id": "",         "vulnerable_code": "void v(){}", "fixed_code": "void f(){}"},
-        {"language": "c",      "cwe_id": "NVD-CWE-noinfo", "vulnerable_code": "v", "fixed_code": "f"},
-        {"language": "python", "cwe_id": "CWE-22",  "vulnerable_code": "x=1", "fixed_code": "y=2"},
-    ])
-    p = tmp_path / "crossvul.parquet"
-    df.to_parquet(p)
+    p = tmp_path / "crossvul.zip"
+    with zipfile.ZipFile(p, 'w') as zf:
+        zf.writestr("dataset_final_sorted/CWE-119/c/bad_0001_0",   "void vuln() { buf[idx]; }")
+        zf.writestr("dataset_final_sorted/CWE-119/c/good_0001_0",  "void safe() { return 0; }")
+        zf.writestr("dataset_final_sorted/CWE-89/java/bad_0001_0",  "void sqli() {}")
+        zf.writestr("dataset_final_sorted/CWE-89/java/good_0001_0", "void safej() {}")
+        zf.writestr("dataset_final_sorted/CWE-22/py/bad_0001_0",   "x = open(path)")
+        zf.writestr("dataset_final_sorted/CWE-22/py/good_0001_0",  "x = open(safe_path)")
+        zf.writestr("dataset_final_sorted/NOTCWE/c/bad_0001_0",    "void skip() {}")
     return p
 
 
-def test_returns_only_label0(crossvul_path):
+def test_returns_function_samples(crossvul_path):
     samples = extract_crossvul(crossvul_path, language="C/C++")
-    assert all(s.label == 0 for s in samples)
+    assert all(isinstance(s, FunctionSample) for s in samples)
 
 
 def test_filters_by_language(crossvul_path):
-    c_samples  = extract_crossvul(crossvul_path, language="C/C++")
-    java_samples = extract_crossvul(crossvul_path, language="Java")
-    assert len(c_samples) == 1
-    assert len(java_samples) == 1
+    c_samples      = extract_crossvul(crossvul_path, language="C/C++")
+    java_samples   = extract_crossvul(crossvul_path, language="Java")
+    python_samples = extract_crossvul(crossvul_path, language="Python")
+    assert len(c_samples)      == 2
+    assert len(java_samples)   == 2
+    assert len(python_samples) == 2
 
 
-def test_drops_empty_cwe(crossvul_path):
+def test_labels(crossvul_path):
     samples = extract_crossvul(crossvul_path, language="C/C++")
-    # row with empty cwe_id should be filtered out; only 1 C row with valid CWE remains
-    assert len(samples) == 1
+    assert {s.label for s in samples} == {0, 1}
+
+
+def test_vulnerable_has_cwe_safe_has_none(crossvul_path):
+    samples = extract_crossvul(crossvul_path, language="C/C++")
+    for s in samples:
+        if s.label == 1:
+            assert s.cwes == ["CWE-119"]
+        else:
+            assert s.cwes == []
+
+
+def test_skips_invalid_cwe_dir(crossvul_path):
+    samples = extract_crossvul(crossvul_path, language="C/C++")
+    assert len(samples) == 2  # NOTCWE dir skipped
 
 
 def test_branch_and_language_fields(crossvul_path):
     samples = extract_crossvul(crossvul_path, language="C/C++")
     assert all(s.branch == "real" for s in samples)
     assert all(s.language == "C/C++" for s in samples)
-
-
-def test_returns_function_samples(crossvul_path):
-    samples = extract_crossvul(crossvul_path, language="C/C++")
-    assert all(isinstance(s, FunctionSample) for s in samples)

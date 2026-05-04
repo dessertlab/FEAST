@@ -9,7 +9,7 @@ Multi-language vulnerability dataset pipeline. Collects, normalises, and synthes
 ## Pipeline
 
 ```
-Stage 0  Download         00_download_datasets.ipynb
+Stage 0  Download         00_download_datasets.ipynb | main.py download
            Download all raw datasets  ->  data/raw/
 
 Stage 1  Statistics       01_c_cpp.ipynb | 01_java.ipynb | 01_python.ipynb
@@ -196,7 +196,11 @@ Run in order. All notebooks are idempotent.
 
 ### `00_download_datasets.ipynb` — Stage 0
 
-Downloads all 24 raw datasets to `data/raw/`. Each section skips if the target path already exists. Run this **once** before any other notebook.
+Downloads all 16 raw datasets to `data/raw/`. Each section skips if the target path already exists. Run this **once** before any other notebook. Equivalent to `main.py download`.
+
+Two datasets require manual download from Zenodo and cannot be fetched programmatically:
+- **CrossVul** — place `crossvul.zip` at `data/raw/crossvul.zip`
+- **LLMSecEval (vulnerable)** — place `copilot-cwe-scenarios-dataset.zip` at `data/raw/copilot-cwe-scenarios-dataset.zip` (Zenodo record 5225651)
 
 ### `01_c_cpp.ipynb` / `01_java.ipynb` / `01_python.ipynb` — Stage 1
 
@@ -236,7 +240,20 @@ Files are skipped if they already exist (set `OVERWRITE = True` to force re-writ
 
 ## CLI
 
-`main.py` exposes the Stage 2 pipeline with full filtering control from the command line. All parameters are optional; omitting any takes the broadest possible default.
+`main.py` exposes the full pipeline from the command line.
+
+### `download` — fetch all datasets (Stage 0)
+
+```bash
+uv run python main.py download
+```
+
+Downloads all 16 datasets to `data/raw/`. Idempotent: already-present paths are skipped. Two datasets require manual download from Zenodo; the command prints instructions for these when they are missing:
+
+| Dataset | File to place in `data/raw/` |
+|---------|------------------------------|
+| CrossVul | `crossvul.zip` |
+| LLMSecEval (vulnerable) | `copilot-cwe-scenarios-dataset.zip` (Zenodo record 5225651) |
 
 ### `list` — show all available sources
 
