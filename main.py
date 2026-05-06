@@ -33,11 +33,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
+import shutil
 import sys
 import tarfile
+import unicodedata
 import zipfile
 from collections import Counter
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pandas as pd
 
@@ -52,6 +54,13 @@ CWE_XML    = ROOT / 'data' / 'cwec_latest.xml'
 _LANG_EXT = {'C/C++': '.c', 'Java': '.java', 'Python': '.py'}
 
 BRANCH_PRIORITY = {'real': 0, 'synth': 1, 'ai': 2}
+_MAX_PATH_COMPONENT = 96
+_WINDOWS_RESERVED_NAMES = frozenset({
+    'CON', 'PRN', 'AUX', 'NUL',
+    *(f'COM{i}' for i in range(1, 10)),
+    *(f'LPT{i}' for i in range(1, 10)),
+})
+_PATH_UNSAFE_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
 _VALID_BRANCHES = frozenset(BRANCH_PRIORITY)
 _VALID_CWE_TYPES = frozenset({'leaf', 'non-leaf', 'category', 'deprecated', 'unknown'})
 _LANG_SLUG    = {'C/C++': 'c_cpp', 'Java': 'java', 'Python': 'python'}
@@ -132,6 +141,45 @@ def _slug(name: str) -> str:
     return re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
 
 
+def _path_hash(value: object) -> str:
+    return hashlib.sha256(str(value).encode('utf-8', errors='replace')).hexdigest()[:10]
+
+
+def _path_component(
+    value: object,
+    fallback: str,
+    max_len: int = _MAX_PATH_COMPONENT,
+) -> str:
+    """Return a cross-platform-safe, bounded path component."""
+    original = str(value or '')
+    normalized = unicodedata.normalize('NFKD', original).encode('ascii', 'ignore').decode()
+    cleaned = _PATH_UNSAFE_CHARS.sub('_', normalized)
+    cleaned = re.sub(r'\s+', '_', cleaned)
+    cleaned = re.sub(r'_+', '_', cleaned).strip(' ._')
+    if not cleaned:
+        cleaned = fallback
+
+    stem = cleaned.split('.', 1)[0].upper()
+    if stem in _WINDOWS_RESERVED_NAMES:
+        cleaned = f'{cleaned}_{_path_hash(original)}'
+
+    if len(cleaned) > max_len:
+        suffix = f'_{_path_hash(original)}'
+        cleaned = f'{cleaned[:max_len - len(suffix)].rstrip(" ._")}{suffix}'
+
+    return cleaned or fallback
+
+
+def _dataset_dir_name(source: object) -> str:
+    source_text = str(source or '')
+    return _path_component(_slug(source_text) or source_text, fallback='dataset')
+
+
+def _sample_file_stem(sample_id: object, code_hash: object | None = None) -> str:
+    fallback = str(code_hash or '')[:16] or 'sample'
+    return _path_component(sample_id or fallback, fallback=fallback, max_len=64)
+
+
 def _display_path(path: Path) -> str:
     try:
         return str(path.relative_to(ROOT))
@@ -191,28 +239,57 @@ def _parse_branches(raw: str | None) -> set[str] | None:
     return values
 
 
+def _archive_target(dest: Path, member_name: str) -> Path:
+    if not member_name or '\x00' in member_name:
+        raise ValueError('unsafe archive member path: empty or NUL-containing name')
+    win_path = PureWindowsPath(member_name)
+    if win_path.drive or win_path.is_absolute() or member_name.startswith(('/', '\\')):
+        raise ValueError(f'unsafe archive member path: {member_name}')
+
+    parts = [p for p in member_name.replace('\\', '/').split('/') if p and p != '.']
+    if not parts or any(p == '..' for p in parts):
+        raise ValueError(f'unsafe archive member path: {member_name}')
+
+    target = dest.joinpath(*parts).resolve()
+    try:
+        target.relative_to(dest)
+    except ValueError as exc:
+        raise ValueError(f'unsafe archive member path: {member_name}') from exc
+    return target
+
+
 def _safe_extract_zip(zf: zipfile.ZipFile, dest: Path) -> None:
     dest = dest.resolve()
+    dest.mkdir(parents=True, exist_ok=True)
     for member in zf.infolist():
-        target = (dest / member.filename).resolve()
-        try:
-            target.relative_to(dest)
-        except ValueError as exc:
-            raise ValueError(f'unsafe ZIP member path: {member.filename}') from exc
-    zf.extractall(dest)
+        target = _archive_target(dest, member.filename)
+        file_type = (member.external_attr >> 16) & 0o170000
+        if file_type == 0o120000:
+            raise ValueError(f'unsafe ZIP symlink member: {member.filename}')
+        if member.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with zf.open(member) as src, target.open('wb') as dst:
+            shutil.copyfileobj(src, dst)
 
 
 def _safe_extract_tar(tf: tarfile.TarFile, dest: Path) -> None:
     dest = dest.resolve()
+    dest.mkdir(parents=True, exist_ok=True)
     for member in tf.getmembers():
-        if member.issym() or member.islnk():
-            raise ValueError(f'unsafe TAR link member: {member.name}')
-        target = (dest / member.name).resolve()
-        try:
-            target.relative_to(dest)
-        except ValueError as exc:
-            raise ValueError(f'unsafe TAR member path: {member.name}') from exc
-    tf.extractall(dest)
+        target = _archive_target(dest, member.name)
+        if member.isdir():
+            target.mkdir(parents=True, exist_ok=True)
+        elif member.isfile():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            src = tf.extractfile(member)
+            if src is None:
+                raise ValueError(f'cannot read TAR member: {member.name}')
+            with src, target.open('wb') as dst:
+                shutil.copyfileobj(src, dst)
+        else:
+            raise ValueError(f'unsafe TAR special member: {member.name}')
 
 
 def _resolve_source(name: str, registry: dict) -> str | None:
@@ -616,16 +693,28 @@ def cmd_materialize(args) -> None:
             continue
 
         lang_dir = MAT_DIR / slug
+        lang_dir.mkdir(parents=True, exist_ok=True)
         n_written = 0
         n_skip    = 0
+        index_rows = []
 
         console.print()
         console.print(Panel(f'[bold]{language}[/bold]  [dim]({len(df):,} samples)[/dim]', expand=False))
 
-        for row in df[['source', 'sample_id', 'code']].itertuples(index=False):
-            dataset_dir = lang_dir / _slug(row.source)
+        for row in df[['source', 'sample_id', 'code', 'code_hash', 'label', 'cwes', 'branch']].itertuples(index=False):
+            dataset_dir = lang_dir / _dataset_dir_name(row.source)
             dataset_dir.mkdir(parents=True, exist_ok=True)
-            out = dataset_dir / f'{row.sample_id}{ext}'
+            out = dataset_dir / f'{_sample_file_stem(row.sample_id, row.code_hash)}{ext}'
+            rel_out = out.relative_to(lang_dir).as_posix()
+            index_rows.append({
+                'sample_id': row.sample_id,
+                'source': row.source,
+                'label': row.label,
+                'cwes': row.cwes,
+                'branch': row.branch,
+                'code_hash': row.code_hash,
+                'materialized_path': rel_out,
+            })
             if not args.overwrite and out.exists():
                 n_skip += 1
                 continue
@@ -634,7 +723,7 @@ def cmd_materialize(args) -> None:
 
         # write per-language index parquet
         index_path = lang_dir / 'index.parquet'
-        df[['sample_id', 'source', 'label', 'cwes', 'branch', 'code_hash']].to_parquet(index_path, index=False)
+        pd.DataFrame(index_rows).to_parquet(index_path, index=False)
 
         t = Table(box=box.SIMPLE, show_header=False, pad_edge=False)
         t.add_column(style='dim', no_wrap=True, min_width=24)
