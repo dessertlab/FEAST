@@ -678,15 +678,17 @@ name = "feast"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "datasets" },
+    { name = "gdown" },
+    { name = "huggingface-hub" },
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pandas", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pyarrow" },
+    { name = "rich" },
 ]
 
 [package.optional-dependencies]
 dev = [
-    { name = "datasets" },
-    { name = "gdown" },
     { name = "ipykernel" },
     { name = "ipywidgets" },
     { name = "openpyxl" },
@@ -696,8 +698,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "datasets", marker = "extra == 'dev'", specifier = ">=2.0" },
-    { name = "gdown", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "datasets", specifier = ">=2.0" },
+    { name = "gdown", specifier = ">=5.0" },
+    { name = "huggingface-hub", specifier = ">=0.24" },
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "ipywidgets", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "openpyxl", marker = "extra == 'dev'", specifier = ">=3.1" },
@@ -705,6 +708,7 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=14.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "rich", specifier = ">=13.0" },
 ]
 provides-extras = ["dev"]
 

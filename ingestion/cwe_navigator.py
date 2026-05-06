@@ -5,7 +5,7 @@ if _HERE not in _sys.path:
 
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Set, Optional, Tuple
-from collections import defaultdict
+from collections import defaultdict, deque
 
 class CWENavigator:
     def __init__(self, xml_file_path: str):
@@ -242,7 +242,7 @@ class CWENavigator:
                     element_name = self.get_element_name(element_id)
                     element_type = self.get_element_type(element_id)
                     indent = "   " + "  " * i
-                    arrow = "\->" if i == len(path) - 1 else "+->"
+                    arrow = "\\->" if i == len(path) - 1 else "+->"
                     highlight = " *" if element_id == cwe_id else ""
                     print(f"{indent}{arrow} CWE-{element_id}: {element_name} ({element_type}){highlight}")
 
@@ -271,7 +271,7 @@ class CWENavigator:
         else:
             for i, (id_, name, type_str) in enumerate(path):
                 indent = "  " * i
-                arrow = "\->" if i == len(path) - 1 else "+->"
+                arrow = "\\->" if i == len(path) - 1 else "+->"
                 highlight = " (TOP)" if i == len(path) - 1 else ""
                 print(f"{indent}{arrow} CWE-{id_}: {name}{highlight}")
 
@@ -302,10 +302,10 @@ class CWENavigator:
 
     def _get_descendants_in_view(self, view_id: str, start_id: str, max_depth: Optional[int]) -> Dict[int, List[str]]:
         results = defaultdict(list)
-        queue = [(start_id, 0)]
+        queue = deque([(start_id, 0)])
 
         while queue:
-            current, depth = queue.pop(0)
+            current, depth = queue.popleft()
             if depth != 0:
                 results[depth].append(current)
             if max_depth is not None and depth >= max_depth:
@@ -317,10 +317,10 @@ class CWENavigator:
 
     def _get_descendants_in_categories(self, category_id: str, max_depth: Optional[int]) -> Dict[int, List[str]]:
         results = defaultdict(list)
-        queue = [(category_id, 0)]
+        queue = deque([(category_id, 0)])
 
         while queue:
-            current, depth = queue.pop(0)
+            current, depth = queue.popleft()
             if depth != 0:
                 results[depth].append(current)
             if max_depth is not None and depth >= max_depth:

@@ -34,6 +34,8 @@ import argparse
 import hashlib
 import re
 import sys
+import tarfile
+import zipfile
 from collections import Counter
 from pathlib import Path
 
@@ -50,6 +52,8 @@ CWE_XML    = ROOT / 'data' / 'cwec_latest.xml'
 _LANG_EXT = {'C/C++': '.c', 'Java': '.java', 'Python': '.py'}
 
 BRANCH_PRIORITY = {'real': 0, 'synth': 1, 'ai': 2}
+_VALID_BRANCHES = frozenset(BRANCH_PRIORITY)
+_VALID_CWE_TYPES = frozenset({'leaf', 'non-leaf', 'category', 'deprecated', 'unknown'})
 _LANG_SLUG    = {'C/C++': 'c_cpp', 'Java': 'java', 'Python': 'python'}
 _LANG_ALIASES = {
     'c': 'C/C++', 'cpp': 'C/C++', 'c/c++': 'C/C++',
@@ -126,6 +130,89 @@ def _hash(code: str) -> str:
 
 def _slug(name: str) -> str:
     return re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _csv_items(raw: str) -> list[str]:
+    return [item.strip() for item in raw.split(',') if item.strip()]
+
+
+def _parse_cwe_types(raw: str) -> set[str]:
+    if raw.lower().strip() == 'all':
+        return set(_VALID_CWE_TYPES)
+    values = {item.lower() for item in _csv_items(raw)}
+    unknown = values - _VALID_CWE_TYPES
+    if unknown:
+        raise ValueError(
+            f'unknown CWE type(s): {", ".join(sorted(unknown))}; '
+            f'choose: {", ".join(sorted(_VALID_CWE_TYPES))}, all'
+        )
+    if not values:
+        raise ValueError('at least one CWE type is required')
+    return values
+
+
+def _parse_cwe_whitelist(raw: str | None) -> set[str] | None:
+    if not raw:
+        return None
+    cwes: set[str] = set()
+    invalid: list[str] = []
+    for item in _csv_items(raw):
+        m = re.fullmatch(r'(?:CWE-?)?(\d+)', item, flags=re.IGNORECASE)
+        if m:
+            cwes.add(f'CWE-{int(m.group(1))}')
+        else:
+            invalid.append(item)
+    if invalid:
+        raise ValueError(f'invalid CWE ID(s): {", ".join(invalid)}')
+    if not cwes:
+        raise ValueError('at least one CWE ID is required')
+    return cwes
+
+
+def _parse_branches(raw: str | None) -> set[str] | None:
+    if not raw or raw.lower().strip() == 'all':
+        return None
+    values = {item.lower() for item in _csv_items(raw)}
+    unknown = values - _VALID_BRANCHES
+    if unknown:
+        raise ValueError(
+            f'unknown branch(es): {", ".join(sorted(unknown))}; '
+            f'choose: {", ".join(sorted(_VALID_BRANCHES))}, all'
+        )
+    if not values:
+        raise ValueError('at least one branch is required')
+    return values
+
+
+def _safe_extract_zip(zf: zipfile.ZipFile, dest: Path) -> None:
+    dest = dest.resolve()
+    for member in zf.infolist():
+        target = (dest / member.filename).resolve()
+        try:
+            target.relative_to(dest)
+        except ValueError as exc:
+            raise ValueError(f'unsafe ZIP member path: {member.filename}') from exc
+    zf.extractall(dest)
+
+
+def _safe_extract_tar(tf: tarfile.TarFile, dest: Path) -> None:
+    dest = dest.resolve()
+    for member in tf.getmembers():
+        if member.issym() or member.islnk():
+            raise ValueError(f'unsafe TAR link member: {member.name}')
+        target = (dest / member.name).resolve()
+        try:
+            target.relative_to(dest)
+        except ValueError as exc:
+            raise ValueError(f'unsafe TAR member path: {member.name}') from exc
+    tf.extractall(dest)
 
 
 def _resolve_source(name: str, registry: dict) -> str | None:
@@ -332,9 +419,10 @@ def _merge_lang(
     combined['_prio'] = combined['branch'].map(lambda b: BRANCH_PRIORITY.get(b, 99))
     combined = combined.sort_values('_prio').reset_index(drop=True)
 
-    conflicts = combined.groupby('code_hash').filter(lambda g: g['label'].nunique() > 1)
-    if len(conflicts):
-        console.print(f'  [yellow]⚠[/yellow]  Label conflicts: {conflicts["code_hash"].nunique()} hashes — first (higher priority) kept')
+    label_counts = combined.groupby('code_hash', sort=False)['label'].nunique()
+    n_conflicts = int((label_counts > 1).sum())
+    if n_conflicts:
+        console.print(f'  [yellow]![/yellow]  Label conflicts: {n_conflicts} hashes -- first (higher priority) kept')
 
     df = (combined.drop_duplicates(subset='code_hash', keep='first')
                   .drop(columns=['_prio'])
@@ -352,9 +440,9 @@ def _merge_lang(
         n_cwes_dropped = len(cwe_counts) - len(allowed_by_count)
 
         df = df.copy()
-        df['cwes'] = df.apply(
-            lambda r: [c for c in r['cwes'] if c in allowed_by_count] if r['label'] == 1 else r['cwes'],
-            axis=1,
+        vuln_mask = df['label'] == 1
+        df.loc[vuln_mask, 'cwes'] = df.loc[vuln_mask, 'cwes'].map(
+            lambda cwes: [c for c in cwes if c in allowed_by_count]
         )
         before = len(df)
         df = df[~((df['label'] == 1) & (df['cwes'].apply(len) == 0))].reset_index(drop=True)
@@ -377,7 +465,7 @@ def _merge_lang(
     t.add_row('[bold]Merged total[/bold]',
               f'[bold]{len(df):,}[/bold]  ({n_vuln:,} vuln + {n_safe:,} safe)')
     t.add_row('Unique CWEs',                  str(len(all_cwes)))
-    t.add_row('[green]Saved[/green]',         str(out.relative_to(ROOT)))
+    t.add_row('[green]Saved[/green]',         _display_path(out))
     console.print(t)
     return df
 
@@ -385,8 +473,6 @@ def _merge_lang(
 # ── synthesize command ─────────────────────────────────────────────────────────
 
 def cmd_synthesize(args) -> None:
-    _ensure_nav()
-
     # resolve language(s)
     if args.lang.lower() == 'all':
         langs = ALL_LANGS
@@ -398,26 +484,36 @@ def cmd_synthesize(args) -> None:
         langs = [_LANG_ALIASES[key]]
 
     # CWE type filter
-    if args.cwe_types.lower() == 'all':
-        allowed_types = {'leaf', 'non-leaf', 'category', 'deprecated', 'unknown'}
-    else:
-        allowed_types = {t.strip() for t in args.cwe_types.split(',')}
+    try:
+        allowed_types = _parse_cwe_types(args.cwe_types)
+    except ValueError as e:
+        console.print(f'[red]Invalid --cwe-types:[/red] {e}')
+        sys.exit(1)
 
     # specific CWE whitelist
-    allowed_cwes: set[str] | None = None
-    if args.cwes:
-        raw_ids = [c.strip() for c in args.cwes.split(',')]
-        allowed_cwes = {c if c.upper().startswith('CWE-') else f'CWE-{c}' for c in raw_ids}
+    try:
+        allowed_cwes = _parse_cwe_whitelist(args.cwes)
+    except ValueError as e:
+        console.print(f'[red]Invalid --cwes:[/red] {e}')
+        sys.exit(1)
 
     # branch filter
-    branches: set[str] | None = None
-    if args.branches and args.branches.lower() != 'all':
-        branches = {b.strip() for b in args.branches.split(',')}
+    try:
+        branches = _parse_branches(args.branches)
+    except ValueError as e:
+        console.print(f'[red]Invalid --branches:[/red] {e}')
+        sys.exit(1)
+
+    if args.min_cwe_count < 1:
+        console.print('[red]Invalid --min-cwe-count:[/red] value must be >= 1')
+        sys.exit(1)
 
     # source filter
     sources_filter: list[str] | None = None
     if args.sources:
         sources_filter = [s.strip() for s in args.sources.split(',')]
+
+    _ensure_nav()
 
     PROC_DIR.mkdir(parents=True, exist_ok=True)
     MERGED_DIR.mkdir(parents=True, exist_ok=True)
@@ -526,14 +622,14 @@ def cmd_materialize(args) -> None:
         console.print()
         console.print(Panel(f'[bold]{language}[/bold]  [dim]({len(df):,} samples)[/dim]', expand=False))
 
-        for _, row in df.iterrows():
-            dataset_dir = lang_dir / _slug(row['source'])
+        for row in df[['source', 'sample_id', 'code']].itertuples(index=False):
+            dataset_dir = lang_dir / _slug(row.source)
             dataset_dir.mkdir(parents=True, exist_ok=True)
-            out = dataset_dir / f'{row["sample_id"]}{ext}'
+            out = dataset_dir / f'{row.sample_id}{ext}'
             if not args.overwrite and out.exists():
                 n_skip += 1
                 continue
-            out.write_text(row['code'], encoding='utf-8')
+            out.write_text(row.code, encoding='utf-8')
             n_written += 1
 
         # write per-language index parquet
@@ -546,7 +642,7 @@ def cmd_materialize(args) -> None:
         t.add_row('Files written',   f'{n_written:,}')
         if n_skip:
             t.add_row('Skipped (exist)', f'{n_skip:,}')
-        t.add_row('[green]Index saved[/green]', str(index_path.relative_to(ROOT)))
+        t.add_row('[green]Index saved[/green]', _display_path(index_path))
         console.print(t)
         total_written += n_written
 
@@ -655,10 +751,10 @@ def cmd_download(_args) -> None:
             arc = next(raw.glob('_icvul_archive*'))
             if _zipfile.is_zipfile(arc):
                 with _zipfile.ZipFile(arc) as zf:
-                    zf.extractall(icvul_dir)
+                    _safe_extract_zip(zf, icvul_dir)
             elif tarfile.is_tarfile(arc):
                 with tarfile.open(arc) as tf:
-                    tf.extractall(icvul_dir)
+                    _safe_extract_tar(tf, icvul_dir)
             arc.unlink(missing_ok=True)
             _ok('ICVul', 'extracted')
 
@@ -721,7 +817,7 @@ def cmd_download(_args) -> None:
     elif copilot_zip.exists():
         zenodo_dir.mkdir(parents=True, exist_ok=True)
         with _zipfile.ZipFile(copilot_zip) as zf:
-            zf.extractall(zenodo_dir)
+            _safe_extract_zip(zf, zenodo_dir)
         _ok('LLMSecEval (vuln)', 'extracted from ZIP')
     else:
         _manual('LLMSecEval (vuln)', 'copilot-cwe-scenarios-dataset.zip',
