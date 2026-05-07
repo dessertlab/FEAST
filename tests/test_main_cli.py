@@ -1,6 +1,8 @@
 import io
+import subprocess
 import sys
 import tarfile
+import urllib.request
 import zipfile
 from types import ModuleType, SimpleNamespace
 
@@ -630,6 +632,83 @@ def test_cmd_download_skips_when_all_datasets_are_present(tmp_path, monkeypatch,
     assert "PrimeVul" in output
     assert "already present" in output
     assert "All datasets present" in output
+
+
+def test_cmd_download_uses_faked_downloaders_without_network(tmp_path, monkeypatch, capsys):
+    raw = tmp_path / "raw"
+    monkeypatch.setattr(feast_cli, "RAW_DIR", raw)
+
+    hf_module = ModuleType("huggingface_hub")
+
+    def fake_hf_hub_download(repo_id, filename, repo_type):
+        del repo_id, repo_type
+        local = tmp_path / "hf" / filename.replace("/", "_")
+        _present_file(local)
+        return str(local)
+
+    def fake_snapshot_download(repo_id, repo_type):
+        del repo_type
+        local = tmp_path / "snapshot" / feast_cli._slug(repo_id)
+        _present_file(local / "sample.txt")
+        return str(local)
+
+    hf_module.hf_hub_download = fake_hf_hub_download
+    hf_module.snapshot_download = fake_snapshot_download
+    monkeypatch.setitem(sys.modules, "huggingface_hub", hf_module)
+
+    gdown_module = ModuleType("gdown")
+
+    def fake_gdown_download(id, output):
+        del id
+        with zipfile.ZipFile(output, "w") as zf:
+            zf.writestr("function_info.csv", "id,code\n1,int main(){}\n")
+        return output
+
+    gdown_module.download = fake_gdown_download
+    monkeypatch.setitem(sys.modules, "gdown", gdown_module)
+
+    datasets_module = ModuleType("datasets")
+
+    def fake_load_dataset(name, trust_remote_code):
+        del name, trust_remote_code
+        frame = pd.DataFrame([{"code": "int main() {}", "target": 0}])
+        return {"train": SimpleNamespace(to_pandas=lambda: frame)}
+
+    datasets_module.load_dataset = fake_load_dataset
+    monkeypatch.setitem(sys.modules, "datasets", datasets_module)
+
+    def fake_urlretrieve(url, dest):
+        del url
+        _present_file(dest)
+        return str(dest), None
+
+    def fake_subprocess_run(args, capture_output, text):
+        del capture_output, text
+        url = args[3]
+        dest = raw / args[-1] if not str(args[-1]).startswith(str(raw)) else args[-1]
+        dest = feast_cli.Path(dest)
+        if "LLMSecEval" in url:
+            _present_file(dest / "Dataset" / "Secure Code Samples" / "CWE-79" / "safe.py")
+            _present_file(dest / "Dataset" / "Secure Code Samples" / "misc" / "ignored.py")
+        else:
+            _present_file(dest / "README.md")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(urllib.request, "urlretrieve", fake_urlretrieve)
+    monkeypatch.setattr(subprocess, "run", fake_subprocess_run)
+
+    feast_cli.cmd_download(SimpleNamespace())
+
+    output = capsys.readouterr().out
+    assert "PrimeVul" in output
+    assert "manual download required" in output
+    assert "Manual downloads still required" in output
+    assert (raw / "primevul_train.jsonl").exists()
+    assert (raw / "icvul" / "function_info.csv").exists()
+    assert (raw / "cvefixes" / "train-00000-of-00003.parquet").exists()
+    assert (raw / "secvuleval.csv").exists()
+    assert (raw / "juliet_c.zip").exists()
+    assert (raw / "llmseceval" / "CWE-79" / "Secure" / "safe.py").exists()
 
 
 def test_build_parser_supports_aliases_and_data_dir(tmp_path):
