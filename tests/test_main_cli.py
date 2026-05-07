@@ -1,21 +1,54 @@
 import io
+import sys
 import tarfile
 import zipfile
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pandas as pd
 import pytest
 
+from ingestion.schema import FunctionSample
 import main as feast_cli
+
+
+def _sample(code="code", cwes=None, label=0, branch="real", sample_id=""):
+    return FunctionSample(
+        code=code,
+        cwes=[] if cwes is None else cwes,
+        label=label,
+        branch=branch,
+        sample_id=sample_id,
+    )
+
+
+def _present_file(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("present", encoding="utf-8")
+
+
+def _present_dir(path):
+    _present_file(path / ".present")
 
 
 def test_parse_cwe_whitelist_normalises_ids():
     assert feast_cli._parse_cwe_whitelist("cwe-079,89,CWE89") == {"CWE-79", "CWE-89"}
 
 
+def test_parse_cwe_whitelist_accepts_none_and_rejects_empty_csv():
+    assert feast_cli._parse_cwe_whitelist(None) is None
+    with pytest.raises(ValueError):
+        feast_cli._parse_cwe_whitelist(" , ")
+
+
 def test_parse_cwe_whitelist_rejects_invalid_ids():
     with pytest.raises(ValueError):
         feast_cli._parse_cwe_whitelist("CWE-79,foo")
+
+
+def test_parse_cwe_types_all_and_empty_values():
+    assert feast_cli._parse_cwe_types(" ALL ") == feast_cli._VALID_CWE_TYPES
+    with pytest.raises(ValueError):
+        feast_cli._parse_cwe_types(" , ")
 
 
 def test_parse_cwe_types_rejects_unknown_values():
@@ -24,9 +57,13 @@ def test_parse_cwe_types_rejects_unknown_values():
 
 
 def test_parse_branches_normalises_and_rejects_unknown_values():
+    assert feast_cli._parse_branches(None) is None
+    assert feast_cli._parse_branches(" all ") is None
     assert feast_cli._parse_branches("Real,AI") == {"real", "ai"}
     with pytest.raises(ValueError):
         feast_cli._parse_branches("real,manual")
+    with pytest.raises(ValueError):
+        feast_cli._parse_branches(" , ")
 
 
 def test_path_component_handles_reserved_weird_and_long_names():
@@ -75,6 +112,30 @@ def test_safe_extract_zip_normalises_backslash_members(tmp_path):
     assert (out / "nested" / "file.txt").read_text() == "ok"
 
 
+def test_safe_extract_zip_creates_directories_and_rejects_symlinks(tmp_path):
+    ok_archive = tmp_path / "dirs.zip"
+    with zipfile.ZipFile(ok_archive, "w") as zf:
+        zf.writestr("pkg/", "")
+        zf.writestr("pkg/file.txt", "ok")
+
+    out = tmp_path / "ok"
+    with zipfile.ZipFile(ok_archive) as zf:
+        feast_cli._safe_extract_zip(zf, out)
+
+    assert (out / "pkg").is_dir()
+    assert (out / "pkg" / "file.txt").read_text() == "ok"
+
+    bad_archive = tmp_path / "symlink.zip"
+    info = zipfile.ZipInfo("link")
+    info.create_system = 3
+    info.external_attr = 0o120777 << 16
+    with zipfile.ZipFile(bad_archive, "w") as zf:
+        zf.writestr(info, "target")
+
+    with zipfile.ZipFile(bad_archive) as zf, pytest.raises(ValueError):
+        feast_cli._safe_extract_zip(zf, tmp_path / "bad")
+
+
 def test_safe_extract_tar_rejects_path_traversal(tmp_path):
     data = io.BytesIO()
     with tarfile.open(fileobj=data, mode="w") as tf:
@@ -86,6 +147,164 @@ def test_safe_extract_tar_rejects_path_traversal(tmp_path):
     data.seek(0)
     with tarfile.open(fileobj=data, mode="r") as tf, pytest.raises(ValueError):
         feast_cli._safe_extract_tar(tf, tmp_path / "out")
+
+
+def test_safe_extract_tar_extracts_dirs_files_and_rejects_special_members(tmp_path):
+    data = io.BytesIO()
+    with tarfile.open(fileobj=data, mode="w") as tf:
+        directory = tarfile.TarInfo("pkg")
+        directory.type = tarfile.DIRTYPE
+        tf.addfile(directory)
+        payload = b"ok"
+        info = tarfile.TarInfo("pkg/file.txt")
+        info.size = len(payload)
+        tf.addfile(info, io.BytesIO(payload))
+
+    data.seek(0)
+    out = tmp_path / "out"
+    with tarfile.open(fileobj=data, mode="r") as tf:
+        feast_cli._safe_extract_tar(tf, out)
+
+    assert (out / "pkg").is_dir()
+    assert (out / "pkg" / "file.txt").read_text() == "ok"
+
+    bad = io.BytesIO()
+    with tarfile.open(fileobj=bad, mode="w") as tf:
+        link = tarfile.TarInfo("link")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "target"
+        tf.addfile(link)
+
+    bad.seek(0)
+    with tarfile.open(fileobj=bad, mode="r") as tf, pytest.raises(ValueError):
+        feast_cli._safe_extract_tar(tf, tmp_path / "bad")
+
+
+def test_archive_target_rejects_empty_nul_and_absolute_paths(tmp_path):
+    for name in ["", "bad\x00name", "/abs.txt", r"\abs.txt", r"C:\abs.txt"]:
+        with pytest.raises(ValueError):
+            feast_cli._archive_target(tmp_path, name)
+
+    target = feast_cli._archive_target(tmp_path, "./nested/./file.txt")
+    assert target == (tmp_path / "nested" / "file.txt").resolve()
+
+
+def test_resolve_source_matches_exact_case_insensitive_slug_and_missing():
+    registry = {"CVEfixes(Python)": object(), "PyVul": object()}
+    assert feast_cli._resolve_source("PyVul", registry) == "PyVul"
+    assert feast_cli._resolve_source("pyvul", registry) == "PyVul"
+    assert feast_cli._resolve_source("cvefixes python", registry) == "CVEfixes(Python)"
+    assert feast_cli._resolve_source("missing", registry) is None
+
+
+def test_with_ids_fills_missing_ids_but_keeps_existing_ids():
+    wrapped = feast_cli._with_ids(lambda: [
+        _sample(code="def a(): pass", sample_id=""),
+        _sample(code="def b(): pass", sample_id="kept"),
+    ])
+
+    samples = wrapped()
+
+    assert samples[0].sample_id == feast_cli._hash("def a(): pass")[:16]
+    assert samples[1].sample_id == "kept"
+
+
+def test_to_df_filters_vulnerable_cwes_and_keeps_safe_rows(monkeypatch):
+    cwe_types = {"CWE-79": "leaf", "CWE-999": "unknown"}
+    monkeypatch.setattr(feast_cli, "_cwe_type", lambda cwe: cwe_types[cwe])
+
+    df = feast_cli._to_df(
+        "Dataset",
+        [
+            _sample("def vuln(): pass", ["CWE-79", "CWE-999"], 1, sample_id="v"),
+            _sample("def filtered(): pass", ["CWE-999"], 1, sample_id="drop"),
+            _sample("def safe(): pass", ["CWE-79"], 0, sample_id="s"),
+        ],
+        "Python",
+        allowed_types={"leaf"},
+        allowed_cwes={"CWE-79"},
+    )
+
+    assert list(df["sample_id"]) == ["v", "s"]
+    assert df.loc[df["sample_id"] == "v", "cwes"].item() == ["CWE-79"]
+    assert df.loc[df["sample_id"] == "s", "cwes"].item() == []
+
+
+def test_to_df_returns_schema_for_empty_result(monkeypatch):
+    monkeypatch.setattr(feast_cli, "_cwe_type", lambda _cwe: "unknown")
+
+    df = feast_cli._to_df(
+        "Dataset",
+        [_sample("def filtered(): pass", ["CWE-999"], 1)],
+        "Python",
+        allowed_types={"leaf"},
+        allowed_cwes=None,
+    )
+
+    assert df.empty
+    assert list(df.columns) == [
+        "code",
+        "language",
+        "label",
+        "cwes",
+        "branch",
+        "source",
+        "code_hash",
+        "sample_id",
+    ]
+
+
+def test_load_collections_resolves_filters_skips_unknown_and_missing():
+    registry = {
+        "RealSet": lambda: [
+            _sample("real", branch="real"),
+            _sample("ai", branch="ai"),
+        ],
+        "MissingSet": lambda: (_ for _ in ()).throw(FileNotFoundError("missing")),
+    }
+
+    collections = feast_cli._load_collections(
+        registry,
+        sources=["realset", "MissingSet", "unknown"],
+        branches={"real"},
+    )
+
+    assert list(collections) == ["RealSet"]
+    assert [s.code for s in collections["RealSet"]] == ["real"]
+
+
+def test_process_lang_writes_per_dataset_parquets(tmp_path, monkeypatch):
+    monkeypatch.setattr(feast_cli, "PROC_DIR", tmp_path)
+    monkeypatch.setattr(feast_cli, "_cwe_type", lambda _cwe: "leaf")
+
+    dfs = feast_cli._process_lang(
+        {"PyVul": [_sample("def vuln(): pass", ["CWE-79"], 1, sample_id="v")]},
+        "Python",
+        allowed_types={"leaf"},
+        allowed_cwes=None,
+    )
+
+    assert list(dfs) == ["PyVul"]
+    assert (tmp_path / "python" / "pyvul.parquet").exists()
+
+
+def test_merge_lang_returns_empty_when_all_inputs_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(feast_cli, "MERGED_DIR", tmp_path)
+    empty = pd.DataFrame(columns=[
+        "code",
+        "language",
+        "label",
+        "cwes",
+        "branch",
+        "source",
+        "code_hash",
+        "sample_id",
+    ])
+
+    merged = feast_cli._merge_lang({"Empty": empty}, "Python", min_cwe_count=1)
+
+    assert merged.empty
+    assert not (tmp_path / "python_merged.parquet").exists()
 
 
 def test_merge_lang_keeps_priority_and_filters_sparse_cwes(tmp_path, monkeypatch):
@@ -147,6 +366,88 @@ def test_merge_lang_keeps_priority_and_filters_sparse_cwes(tmp_path, monkeypatch
     assert (tmp_path / "python_merged.parquet").exists()
 
 
+def test_cmd_synthesize_runs_all_languages_with_synthetic_registry(tmp_path, monkeypatch):
+    processed_dir = tmp_path / "processed"
+    merged_dir = tmp_path / "merged"
+    monkeypatch.setattr(feast_cli, "PROC_DIR", processed_dir)
+    monkeypatch.setattr(feast_cli, "MERGED_DIR", merged_dir)
+    monkeypatch.setattr(feast_cli, "_ensure_nav", lambda: None)
+    monkeypatch.setattr(feast_cli, "_cwe_type", lambda _cwe: "leaf")
+    monkeypatch.setattr(
+        feast_cli,
+        "_build_registry",
+        lambda _raw: {
+            "C/C++": {"CSet": lambda: [_sample("int main() {}", ["CWE-79"], 1, sample_id="c")]},
+            "Java": {"JSet": lambda: [_sample("class A {}", [], 0, sample_id="j")]},
+            "Python": {"PSet": lambda: [_sample("def p(): pass", [], 0, sample_id="p")]},
+        },
+    )
+
+    feast_cli.cmd_synthesize(SimpleNamespace(
+        lang="all",
+        cwe_types="leaf",
+        cwes=None,
+        branches="all",
+        min_cwe_count=1,
+        sources=None,
+    ))
+
+    assert (processed_dir / "c_cpp" / "cset.parquet").exists()
+    assert (merged_dir / "c_cpp_merged.parquet").exists()
+    assert (merged_dir / "java_merged.parquet").exists()
+    assert (merged_dir / "python_merged.parquet").exists()
+
+
+def test_cmd_synthesize_continues_when_language_has_no_collections(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(feast_cli, "PROC_DIR", tmp_path / "processed")
+    monkeypatch.setattr(feast_cli, "MERGED_DIR", tmp_path / "merged")
+    monkeypatch.setattr(feast_cli, "_ensure_nav", lambda: None)
+    monkeypatch.setattr(
+        feast_cli,
+        "_build_registry",
+        lambda _raw: {"Python": {"EmptySet": lambda: []}},
+    )
+
+    feast_cli.cmd_synthesize(SimpleNamespace(
+        lang="python",
+        cwe_types="leaf",
+        cwes="CWE-79",
+        branches="real",
+        min_cwe_count=2,
+        sources="missing",
+    ))
+
+    assert "No data for Python" in capsys.readouterr().out
+    assert not (tmp_path / "merged" / "python_merged.parquet").exists()
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"lang": "ruby"}, "Unknown language"),
+        ({"cwe_types": "leef"}, "Invalid --cwe-types"),
+        ({"cwes": "CWE-79,nope"}, "Invalid --cwes"),
+        ({"branches": "manual"}, "Invalid --branches"),
+        ({"min_cwe_count": 0}, "Invalid --min-cwe-count"),
+    ],
+)
+def test_cmd_synthesize_exits_for_invalid_args(kwargs, message, capsys):
+    args = {
+        "lang": "python",
+        "cwe_types": "leaf",
+        "cwes": None,
+        "branches": "all",
+        "min_cwe_count": 1,
+        "sources": None,
+    }
+    args.update(kwargs)
+
+    with pytest.raises(SystemExit):
+        feast_cli.cmd_synthesize(SimpleNamespace(**args))
+
+    assert message in capsys.readouterr().out
+
+
 def test_materialize_sanitises_weird_and_long_paths(tmp_path, monkeypatch):
     merged_dir = tmp_path / "merged"
     materialized_dir = tmp_path / "materialized"
@@ -178,3 +479,199 @@ def test_materialize_sanitises_weird_and_long_paths(tmp_path, monkeypatch):
     assert not any(ch in rel_path for ch in '<>:"\\|?*')
     assert all(len(part) <= feast_cli._MAX_PATH_COMPONENT + 3 for part in rel_path.split("/"))
     assert (materialized_dir / "python" / rel_path).exists()
+
+
+def test_materialize_skips_existing_files_and_backfills_sample_id(tmp_path, monkeypatch):
+    merged_dir = tmp_path / "merged"
+    materialized_dir = tmp_path / "materialized"
+    merged_dir.mkdir()
+    monkeypatch.setattr(feast_cli, "MERGED_DIR", merged_dir)
+    monkeypatch.setattr(feast_cli, "MAT_DIR", materialized_dir)
+
+    code_hash = "b" * 64
+    pd.DataFrame([{
+        "code": "print('new')\n",
+        "language": "Python",
+        "label": 0,
+        "cwes": [],
+        "branch": "real",
+        "source": "PyVul",
+        "code_hash": code_hash,
+    }]).to_parquet(merged_dir / "python_merged.parquet", index=False)
+
+    existing = materialized_dir / "python" / "pyvul" / f"{code_hash[:16]}.py"
+    existing.parent.mkdir(parents=True)
+    existing.write_text("print('old')\n")
+
+    feast_cli.cmd_materialize(SimpleNamespace(lang="python", overwrite=False))
+
+    assert existing.read_text() == "print('old')\n"
+    index = pd.read_parquet(materialized_dir / "python" / "index.parquet")
+    assert index["sample_id"].item() == code_hash[:16]
+
+
+def test_materialize_handles_missing_inputs_source_column_and_bad_language(tmp_path, monkeypatch, capsys):
+    merged_dir = tmp_path / "merged"
+    materialized_dir = tmp_path / "materialized"
+    merged_dir.mkdir()
+    monkeypatch.setattr(feast_cli, "MERGED_DIR", merged_dir)
+    monkeypatch.setattr(feast_cli, "MAT_DIR", materialized_dir)
+
+    feast_cli.cmd_materialize(SimpleNamespace(lang="java", overwrite=False))
+    assert "not found" in capsys.readouterr().out
+
+    pd.DataFrame([{
+        "code": "def p(): pass",
+        "label": 0,
+        "cwes": [],
+        "branch": "real",
+        "code_hash": "c" * 64,
+        "sample_id": "sample",
+    }]).to_parquet(merged_dir / "python_merged.parquet", index=False)
+    feast_cli.cmd_materialize(SimpleNamespace(lang="python", overwrite=False))
+    assert 'missing "source" column' in capsys.readouterr().out
+
+    with pytest.raises(SystemExit):
+        feast_cli.cmd_materialize(SimpleNamespace(lang="ruby", overwrite=False))
+
+
+def test_materialize_all_languages_writes_c_java_python(tmp_path, monkeypatch):
+    merged_dir = tmp_path / "merged"
+    materialized_dir = tmp_path / "materialized"
+    merged_dir.mkdir()
+    monkeypatch.setattr(feast_cli, "MERGED_DIR", merged_dir)
+    monkeypatch.setattr(feast_cli, "MAT_DIR", materialized_dir)
+
+    for slug, language, code in [
+        ("c_cpp", "C/C++", "int main(void) { return 0; }\n"),
+        ("java", "Java", "class A {}\n"),
+        ("python", "Python", "def p():\n    return 1\n"),
+    ]:
+        pd.DataFrame([{
+            "code": code,
+            "language": language,
+            "label": 0,
+            "cwes": [],
+            "branch": "real",
+            "source": "Dataset",
+            "code_hash": slug * 16,
+            "sample_id": f"{slug}-sample",
+        }]).to_parquet(merged_dir / f"{slug}_merged.parquet", index=False)
+
+    feast_cli.cmd_materialize(SimpleNamespace(lang="all", overwrite=True))
+
+    assert (materialized_dir / "c_cpp" / "dataset" / "c_cpp-sample.c").exists()
+    assert (materialized_dir / "java" / "dataset" / "java-sample.java").exists()
+    assert (materialized_dir / "python" / "dataset" / "python-sample.py").exists()
+
+
+def test_build_registry_contains_expected_sources():
+    registry = feast_cli._build_registry(feast_cli.ROOT / "data" / "raw")
+
+    assert set(registry) == {"C/C++", "Java", "Python"}
+    assert {"PrimeVul", "ICVul", "MegaVul", "CASTLE"} <= set(registry["C/C++"])
+    assert {"CVEfixes(Java)", "OWASP(Java)", "CAPEC_LLM(Java)"} <= set(registry["Java"])
+    assert {"PyVul", "SecurityEval", "PatchEval", "LLMSecEval"} <= set(registry["Python"])
+
+
+def test_cmd_list_prints_registry(monkeypatch, capsys):
+    monkeypatch.setattr(
+        feast_cli,
+        "_build_registry",
+        lambda _raw: {
+            "Python": {"PyVul": lambda: []},
+            "Java": {"OWASP(Java)": lambda: []},
+        },
+    )
+
+    feast_cli.cmd_list(SimpleNamespace())
+
+    output = capsys.readouterr().out
+    assert "FEAST source datasets" in output
+    assert "PyVul" in output
+    assert "--sources" in output
+
+
+def test_cmd_download_skips_when_all_datasets_are_present(tmp_path, monkeypatch, capsys):
+    raw = tmp_path / "raw"
+    monkeypatch.setattr(feast_cli, "RAW_DIR", raw)
+
+    for file_name in [
+        "primevul_train.jsonl",
+        "primevul_test.jsonl",
+        "secvuleval.csv",
+        "crossvul.zip",
+        "juliet_c.zip",
+        "juliet_java.zip",
+    ]:
+        _present_file(raw / file_name)
+
+    for dir_name in [
+        "icvul",
+        "cvefixes",
+        "megavul",
+        "sven",
+        "castle",
+        "owasp_benchmark",
+        "owasp_benchmark_python",
+        "capec_llm",
+        "patcheval",
+        "pyvul",
+        "security_eval",
+    ]:
+        _present_file(raw / dir_name / ".present")
+
+    _present_file(raw / "llmseceval" / "zenodo" / "case" / "gen_scenario" / "vuln.py")
+    _present_file(raw / "llmseceval" / "CWE-79" / "Secure" / "safe.py")
+
+    feast_cli.cmd_download(SimpleNamespace())
+
+    output = capsys.readouterr().out
+    assert "PrimeVul" in output
+    assert "already present" in output
+    assert "All datasets present" in output
+
+
+def test_build_parser_supports_aliases_and_data_dir(tmp_path):
+    parser = feast_cli._build_parser()
+
+    args = parser.parse_args(["s", "--lang", "py", "--data-dir", str(tmp_path)])
+    assert args.command == "s"
+    assert args.lang == "py"
+    assert args.data_dir == tmp_path
+
+    assert parser.parse_args(["dl"]).command == "dl"
+    assert parser.parse_args(["m"]).command == "m"
+    assert parser.parse_args(["ls"]).command == "ls"
+
+
+def test_main_dispatches_commands_and_data_dir(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(feast_cli, "RAW_DIR", feast_cli.ROOT / "data" / "raw")
+    monkeypatch.setattr(feast_cli.sys, "argv", ["main.py", "s", "--data-dir", str(tmp_path)])
+    monkeypatch.setattr(feast_cli, "cmd_synthesize", lambda args: calls.append(("synth", args.lang)))
+
+    feast_cli.main()
+
+    assert calls == [("synth", "all")]
+    assert feast_cli.RAW_DIR == tmp_path
+
+
+@pytest.mark.parametrize(
+    ("argv", "command_name"),
+    [
+        (["main.py", "download"], "download"),
+        (["main.py", "materialize"], "materialize"),
+        (["main.py", "list"], "list"),
+    ],
+)
+def test_main_dispatches_remaining_commands(monkeypatch, argv, command_name):
+    calls = []
+    monkeypatch.setattr(feast_cli.sys, "argv", argv)
+    monkeypatch.setattr(feast_cli, "cmd_download", lambda _args: calls.append("download"))
+    monkeypatch.setattr(feast_cli, "cmd_materialize", lambda _args: calls.append("materialize"))
+    monkeypatch.setattr(feast_cli, "cmd_list", lambda _args: calls.append("list"))
+
+    feast_cli.main()
+
+    assert calls == [command_name]
