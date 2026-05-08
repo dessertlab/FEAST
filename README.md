@@ -77,9 +77,9 @@ FEAST/
 
 ## Datasets
 
-24 sources organised by language and branch.
+25 sources organised by language and branch.
 
-### C/C++ — 10 sources
+### C/C++ — 11 sources
 
 | Dataset | Branch | Positives | Negatives |
 |---------|--------|-----------|-----------|
@@ -92,6 +92,7 @@ FEAST/
 | SVEN(C) | real | `func_src_before`, CWE from `vul_type` | `func_src_after` (fix-paired) |
 | Juliet(C) | synth | `*_bad.c` files | `*_good*.c` files |
 | CASTLE | synth | `vulnerable=True` | `vulnerable=False` |
+| FormAI | ai | `VULNERABLE` / ESBMC `error_type` mapped to CWE | `NON-VULNERABLE` / safe samples |
 | LLMSecEval(C) | ai | `gen_scenario/*.c` (Copilot completions) | none |
 
 ### Java — 5 sources
@@ -196,7 +197,7 @@ Run in order. All notebooks are idempotent.
 
 ### `00_download_datasets.ipynb` — Stage 0
 
-Downloads all 16 raw datasets to `data/raw/`. Each section skips if the target path already exists. Run this **once** before any other notebook. Equivalent to `main.py download`.
+Downloads all 17 raw datasets to `data/raw/`. Each section skips if the target path already exists. Run this **once** before any other notebook. Equivalent to `main.py download`.
 
 Two datasets require manual download from Zenodo and cannot be fetched programmatically:
 - **CrossVul** — place `crossvul.zip` at `data/raw/crossvul.zip`
@@ -248,7 +249,7 @@ Files are skipped if they already exist (set `OVERWRITE = True` to force re-writ
 uv run python main.py download
 ```
 
-Downloads all 16 datasets to `data/raw/`. Idempotent: already-present paths are skipped. Two datasets require manual download from Zenodo; the command prints instructions for these when they are missing:
+Downloads all 17 datasets to `data/raw/`. Idempotent: already-present paths are skipped. Two datasets require manual download from Zenodo; the command prints instructions for these when they are missing:
 
 | Dataset | File to place in `data/raw/` |
 |---------|------------------------------|

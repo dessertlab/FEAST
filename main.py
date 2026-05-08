@@ -333,6 +333,7 @@ def _build_registry(raw: Path) -> dict[str, dict[str, object]]:
     from ingestion.sven            import extract_sven
     from ingestion.juliet          import extract_juliet
     from ingestion.castle          import extract_castle
+    from ingestion.formai          import extract_formai
     from ingestion.llmseceval      import extract_llmseceval
     from ingestion.owasp_benchmark import extract_owasp_benchmark
     from ingestion.capec_llm       import extract_capec_llm
@@ -358,6 +359,7 @@ def _build_registry(raw: Path) -> dict[str, dict[str, object]]:
             'SVEN(C)':        lambda: extract_sven(raw / 'sven',                 language='C/C++'),
             'Juliet(C)':      lambda: extract_juliet(raw / 'juliet_c.zip',       language='C/C++'),
             'CASTLE':         lambda: extract_castle(raw / 'castle' / 'datasets'),
+            'FormAI':         lambda: extract_formai(raw / 'formai'),
             'LLMSecEval(C)':  lambda: extract_llmseceval(raw / 'llmseceval',     language='C/C++'),
         },
         'Java': {
@@ -742,7 +744,7 @@ def cmd_materialize(args) -> None:
 # ── download command ───────────────────────────────────────────────────────────
 
 def cmd_download(_args) -> None:
-    """Stage 0: download all 16 datasets to data/raw/."""
+    """Stage 0: download all 17 datasets to data/raw/."""
     import re as _re
     import shutil
     import subprocess
@@ -806,6 +808,7 @@ def cmd_download(_args) -> None:
         if _present(dest):
             _skip(label)
             return
+        dest.parent.mkdir(parents=True, exist_ok=True)
         opener = urllib.request.build_opener()
         opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
         urllib.request.install_opener(opener)
@@ -894,7 +897,13 @@ def cmd_download(_args) -> None:
     # 10. CASTLE  (GitHub)
     _git_clone('https://github.com/CASTLE-Benchmark/CASTLE-Benchmark.git', raw / 'castle', 'CASTLE')
 
-    # 11. LLMSecEval  (Zenodo ZIP -- MANUAL; safe samples from GitHub -- automatic)
+    # 11. FormAI  (GitHub raw CSV)
+    _urllib_get(
+        'https://raw.githubusercontent.com/FormAI-Dataset/FormAI-dataset/main/FormAI_dataset_human_readable-V1.csv',
+        raw / 'formai' / 'FormAI_dataset_human_readable-V1.csv', 'FormAI',
+    )
+
+    # 12. LLMSecEval  (Zenodo ZIP -- MANUAL; safe samples from GitHub -- automatic)
     llmsec_dir  = raw / 'llmseceval'
     zenodo_dir  = llmsec_dir / 'zenodo'
     copilot_zip = raw / 'copilot-cwe-scenarios-dataset.zip'
@@ -936,13 +945,13 @@ def cmd_download(_args) -> None:
             shutil.rmtree(github_clone, ignore_errors=True)
             _ok('LLMSecEval (safe)', f'{n} files')
 
-    # 12. OWASP Benchmark  (GitHub x2)
+    # 13. OWASP Benchmark  (GitHub x2)
     _git_clone('https://github.com/OWASP-Benchmark/BenchmarkJava.git',
                raw / 'owasp_benchmark', 'OWASP (Java)')
     _git_clone('https://github.com/OWASP-Benchmark/BenchmarkPython.git',
                raw / 'owasp_benchmark_python', 'OWASP (Python)')
 
-    # 13-16. GitHub repos
+    # 14-17. GitHub repos
     _git_clone('https://github.com/llmForCapec/CAPECDatasetsLLM.git', raw / 'capec_llm',     'CAPEC_LLM')
     _git_clone('https://github.com/bytedance/PatchEval.git',           raw / 'patcheval',     'PatchEval')
     _git_clone('https://github.com/billquan/PyVul.git',                raw / 'pyvul',         'PyVul')

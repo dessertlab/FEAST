@@ -571,7 +571,7 @@ def test_build_registry_contains_expected_sources():
     registry = feast_cli._build_registry(feast_cli.ROOT / "data" / "raw")
 
     assert set(registry) == {"C/C++", "Java", "Python"}
-    assert {"PrimeVul", "ICVul", "MegaVul", "CASTLE"} <= set(registry["C/C++"])
+    assert {"PrimeVul", "ICVul", "MegaVul", "CASTLE", "FormAI"} <= set(registry["C/C++"])
     assert {"CVEfixes(Java)", "OWASP(Java)", "CAPEC_LLM(Java)"} <= set(registry["Java"])
     assert {"PyVul", "SecurityEval", "PatchEval", "LLMSecEval"} <= set(registry["Python"])
 
@@ -614,6 +614,7 @@ def test_cmd_download_skips_when_all_datasets_are_present(tmp_path, monkeypatch,
         "megavul",
         "sven",
         "castle",
+        "formai",
         "owasp_benchmark",
         "owasp_benchmark_python",
         "capec_llm",
@@ -707,6 +708,7 @@ def test_cmd_download_uses_faked_downloaders_without_network(tmp_path, monkeypat
     assert (raw / "icvul" / "function_info.csv").exists()
     assert (raw / "cvefixes" / "train-00000-of-00003.parquet").exists()
     assert (raw / "secvuleval.csv").exists()
+    assert (raw / "formai" / "FormAI_dataset_human_readable-V1.csv").exists()
     assert (raw / "juliet_c.zip").exists()
     assert (raw / "llmseceval" / "CWE-79" / "Secure" / "safe.py").exists()
 
