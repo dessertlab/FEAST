@@ -28,7 +28,7 @@ def _extract_cwes_from_cwe_info(cwe_info) -> list[str]:
                 cwes.append(cwe)
         return list(dict.fromkeys(cwes))
     # fallback: treat as string
-    return [c for c in _CWE_RE.findall(str(cwe_info))]
+    return list(dict.fromkeys(_CWE_RE.findall(str(cwe_info))))
 
 
 def extract_patcheval(

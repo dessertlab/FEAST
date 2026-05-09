@@ -50,3 +50,69 @@ def test_cwe_from_description(capec_java_path):
 def test_branch_and_language(capec_java_path):
     samples = extract_capec_llm(capec_java_path, language="Java")
     assert all(s.branch == "ai" for s in samples)
+
+
+def test_missing_path_raises(tmp_path):
+    with pytest.raises(FileNotFoundError, match="CAPEC_LLM path not found"):
+        extract_capec_llm(tmp_path / "missing")
+
+
+def test_python_filter(capec_java_path):
+    samples = extract_capec_llm(capec_java_path, language="Python")
+    assert all(s.language == "Python" for s in samples)
+    codes = [s.code for s in samples]
+    assert any("def run" in c for c in codes)
+
+
+def test_single_file_input(tmp_path):
+    p = tmp_path / "single.json"
+    p.write_text(json.dumps([
+        {
+            "capec_id": "CAPEC-1",
+            "code_snippet": "public class V { void v(String s){Runtime.getRuntime().exec(s);} }",
+            "description": "CWE-78",
+        },
+    ]))
+    samples = extract_capec_llm(p, language="Java")
+    assert len(samples) == 1 and samples[0].cwes == ["CWE-78"]
+
+
+def test_single_file_with_top_level_dict(tmp_path):
+    p = tmp_path / "single.json"
+    p.write_text(json.dumps({
+        "capec_id": "CAPEC-1",
+        "code_snippet": "public class V { @Override public void run(){} }",
+        "description": "CWE-79 risk",
+    }))
+    samples = extract_capec_llm(p, language="Java")
+    assert len(samples) == 1 and samples[0].cwes == ["CWE-79"]
+
+
+def test_directory_with_top_level_dict(tmp_path):
+    (tmp_path / "a.json").write_text(json.dumps({
+        "capec_id": "CAPEC-1",
+        "code_snippet": "public class V { void f(){} }",
+        "description": "CWE-89",
+    }))
+    samples = extract_capec_llm(tmp_path, language="Java")
+    assert samples and samples[0].cwes == ["CWE-89"]
+
+
+def test_empty_code_skipped(tmp_path):
+    p = tmp_path / "data.json"
+    p.write_text(json.dumps([
+        {"capec_id": "CAPEC-99", "code_snippet": "", "description": "CWE-78"},
+    ]))
+    samples = extract_capec_llm(p, language="Java")
+    assert samples == []
+
+
+def test_unrecognised_language_dropped(tmp_path):
+    # Snippet that doesn't match Java or Python heuristics -> filtered out.
+    p = tmp_path / "data.json"
+    p.write_text(json.dumps([
+        {"capec_id": "CAPEC-1", "code_snippet": "<html>?</html>", "description": "CWE-79"},
+    ]))
+    java_samples = extract_capec_llm(p, language="Java")
+    py_samples = extract_capec_llm(p, language="Python")
+    assert java_samples == [] and py_samples == []

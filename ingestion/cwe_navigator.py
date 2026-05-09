@@ -326,7 +326,7 @@ class CWENavigator:
             if max_depth is not None and depth >= max_depth:
                 continue
             category = self.categories.get(current)
-            if not category:
+            if category is None:
                 continue
             for member in category.findall('.//cwe:Relationships/cwe:Has_Member', self.ns):
                 child_id = member.get('CWE_ID')

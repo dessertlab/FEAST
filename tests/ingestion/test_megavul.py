@@ -66,3 +66,19 @@ def test_cvss_threshold_filters_low_and_null(megavul_dir):
 def test_all_label_1(megavul_dir):
     samples = extract_megavul(megavul_dir)
     assert all(s.label == 1 for s in samples)
+
+
+def test_single_file_input(tmp_path):
+    p = tmp_path / "shard.parquet"
+    pd.DataFrame([
+        {"hash": "h1", "vulnerable_code": "void f(){}", "cwe_id": "CWE-89", "cvss3_base_score": 5.0},
+    ]).to_parquet(p, index=False)
+    samples = extract_megavul(p)
+    assert len(samples) == 1
+
+
+def test_empty_dir_raises(tmp_path):
+    d = tmp_path / "empty"
+    d.mkdir()
+    with pytest.raises(FileNotFoundError, match="No .parquet files"):
+        extract_megavul(d)

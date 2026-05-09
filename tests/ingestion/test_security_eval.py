@@ -52,3 +52,59 @@ def test_branch_and_language(security_eval_jsonl):
     samples = extract_security_eval(security_eval_jsonl)
     assert all(s.branch == "ai" for s in samples)
     assert all(s.language == "Python" for s in samples)
+
+
+def test_jsonl_skips_blank_lines(tmp_path):
+    p = tmp_path / "dataset.jsonl"
+    p.write_text(
+        '\n'
+        + json.dumps({"ID": "CWE-89-1", "Insecure_code": "open()", "CWE": "CWE-89"}) + '\n'
+        + '\n'
+    )
+    samples = extract_security_eval(p)
+    assert len(samples) == 1
+
+
+def test_jsonl_id_field_only(tmp_path):
+    # CWE field absent; ID field carries the CWE.
+    p = tmp_path / "dataset.jsonl"
+    p.write_text(json.dumps({"ID": "CWE-79-1", "Insecure_code": "x"}))
+    samples = extract_security_eval(p)
+    assert samples and samples[0].cwes == ["CWE-79"]
+
+
+def test_cwe_from_id_field_no_dash(tmp_path):
+    # IDs like 'CWE79' (no dash) are parsed via the secondary regex.
+    p = tmp_path / "dataset.jsonl"
+    p.write_text(json.dumps({"ID": "CWE79", "Insecure_code": "x = 1"}))
+    samples = extract_security_eval(p)
+    assert samples and samples[0].cwes == ["CWE-79"]
+
+
+def test_dir_layout_skips_non_cwe_dirs(tmp_path):
+    # Only directories matching CWE-NNN are considered. Top-level files
+    # (non-directories) and non-matching directory names are both skipped.
+    (tmp_path / "README.md").write_text("info")  # top-level file -> not a dir
+    (tmp_path / "junk").mkdir()
+    (tmp_path / "junk" / "x.py").write_text("def x(): pass")
+    cwe89 = tmp_path / "CWE-89"
+    cwe89.mkdir()
+    (cwe89 / "v.py").write_text("def v(): pass")
+    samples = extract_security_eval(tmp_path)
+    assert len(samples) == 1 and samples[0].cwes == ["CWE-89"]
+
+
+def test_dir_layout_skips_empty_files(tmp_path):
+    cwe = tmp_path / "CWE-22"
+    cwe.mkdir()
+    (cwe / "empty.py").write_text("")
+    (cwe / "ok.py").write_text("def f(): pass")
+    samples = extract_security_eval(tmp_path)
+    assert len(samples) == 1 and samples[0].code == "def f(): pass"
+
+
+def test_jsonl_blank_id_field_yields_no_cwe(tmp_path):
+    p = tmp_path / "dataset.jsonl"
+    p.write_text(json.dumps({"ID": "", "Insecure_code": "x", "CWE": ""}))
+    samples = extract_security_eval(p)
+    assert samples == []

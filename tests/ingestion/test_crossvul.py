@@ -56,3 +56,26 @@ def test_branch_and_language_fields(crossvul_path):
     samples = extract_crossvul(crossvul_path, language="C/C++")
     assert all(s.branch == "real" for s in samples)
     assert all(s.language == "C/C++" for s in samples)
+
+
+def test_missing_zip_raises(tmp_path):
+    with pytest.raises(FileNotFoundError, match="CrossVul ZIP not found"):
+        extract_crossvul(tmp_path / "nope.zip", language="C/C++")
+
+
+def test_skips_misc_zip_entries(tmp_path):
+    p = tmp_path / "crossvul.zip"
+    with zipfile.ZipFile(p, 'w') as zf:
+        # Top-level README -> too-short path
+        zf.writestr("README.md", "info")
+        # Directory entry
+        zf.writestr("dataset_final_sorted/CWE-79/c/", "")
+        # Filename neither bad_ nor good_
+        zf.writestr("dataset_final_sorted/CWE-79/c/random_file", "void r(){}")
+        # Empty content
+        zf.writestr("dataset_final_sorted/CWE-79/c/bad_0001_0", "")
+        # Valid entry
+        zf.writestr("dataset_final_sorted/CWE-79/c/bad_0001_1", "void v(){}")
+    samples = extract_crossvul(p, language="C/C++")
+    assert len(samples) == 1
+    assert samples[0].cwes == ["CWE-79"]

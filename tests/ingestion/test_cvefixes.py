@@ -79,3 +79,30 @@ def test_cwe_assigned(cvefixes_dir):
     samples = extract_cvefixes(cvefixes_dir)
     vuln = next(s for s in samples if s.code == "void vuln() {}")
     assert vuln.cwes == ["CWE-119"]
+
+
+def test_empty_directory_raises(tmp_path):
+    d = tmp_path / "empty"
+    d.mkdir()
+    with pytest.raises(FileNotFoundError, match="No .parquet files"):
+        extract_cvefixes(d)
+
+
+def test_single_file_input(tmp_path):
+    p = tmp_path / "shard.parquet"
+    pd.DataFrame([
+        {"hash": "h", "language": "C", "vulnerable_code": "void v(){}", "cwe_id": "CWE-89"},
+    ]).to_parquet(p, index=False)
+    samples = extract_cvefixes(p, language="C")
+    assert len(samples) == 1
+
+
+def test_python_language(tmp_path):
+    p = tmp_path / "shard.parquet"
+    pd.DataFrame([
+        {"hash": "h1", "language": "Python", "vulnerable_code": "def v(): pass", "cwe_id": "CWE-89"},
+        {"hash": "h2", "language": "C",      "vulnerable_code": "void f(){}",     "cwe_id": "CWE-89"},
+    ]).to_parquet(p, index=False)
+    samples = extract_cvefixes(p, language="Python")
+    assert len(samples) == 1
+    assert samples[0].language == "Python"

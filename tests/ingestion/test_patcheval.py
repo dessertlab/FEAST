@@ -62,3 +62,79 @@ def test_drops_empty_cwe_info(patcheval_path):
 def test_branch_and_language(patcheval_path):
     samples = extract_patcheval(patcheval_path)
     assert all(s.branch == "real" for s in samples)
+
+
+def test_extracts_from_directory_of_json_files(tmp_path):
+    rec_a = {
+        "cve_id": "CVE-A",
+        "cwe_info": {"CWE-89": "SQLi"},
+        "vul_func": "def a(): pass",
+        "fix_func": "def a_fixed(): pass",
+        "programming_language": "Python",
+    }
+    rec_b = [{
+        "cve_id": "CVE-B",
+        "cwe_info": "Has CWE-22 inside text",
+        "vul_func": "def b(): pass",
+        "fix_func": "",
+        "programming_language": "Python",
+    }]
+    (tmp_path / "a.json").write_text(json.dumps(rec_a))
+    (tmp_path / "b.json").write_text(json.dumps(rec_b))
+
+    samples = extract_patcheval(tmp_path)
+    cwes = sorted({c for s in samples for c in s.cwes})
+    assert "CWE-22" in cwes and "CWE-89" in cwes
+
+
+def test_string_cwe_info_fallback(tmp_path):
+    p = tmp_path / "dataset.json"
+    p.write_text(json.dumps([{
+        "cve_id": "CVE-X",
+        "cwe_info": "Some text mentioning CWE-79 and CWE-89",
+        "vul_func": "def x(): pass",
+        "fix_func": "",
+        "programming_language": "Python",
+    }]))
+    samples = extract_patcheval(p)
+    positives = [s for s in samples if s.label == 1]
+    assert positives and set(positives[0].cwes) == {"CWE-79", "CWE-89"}
+
+
+def test_docker_verified_only_filter(tmp_path):
+    p = tmp_path / "dataset.json"
+    p.write_text(json.dumps([
+        {
+            "cve_id": "CVE-1",
+            "cwe_info": {"CWE-89": "SQLi"},
+            "vul_func": "def a(): pass",
+            "fix_func": "",
+            "programming_language": "Python",
+            "docker_verified": True,
+        },
+        {
+            "cve_id": "CVE-2",
+            "cwe_info": {"CWE-22": "Path"},
+            "vul_func": "def b(): pass",
+            "fix_func": "",
+            "programming_language": "Python",
+            "docker_verified": False,
+        },
+    ]))
+    filtered = extract_patcheval(p, docker_verified_only=True)
+    assert len(filtered) == 1 and filtered[0].cwes == ["CWE-89"]
+    unfiltered = extract_patcheval(p, docker_verified_only=False)
+    assert len(unfiltered) == 2
+
+
+def test_string_cwe_info_dedup(tmp_path):
+    p = tmp_path / "dataset.json"
+    p.write_text(json.dumps([{
+        "cve_id": "CVE-D",
+        "cwe_info": "CWE-79 CWE-79 CWE-79",
+        "vul_func": "def d(): pass",
+        "fix_func": "",
+        "programming_language": "Python",
+    }]))
+    samples = extract_patcheval(p)
+    assert samples[0].cwes == ["CWE-79"]

@@ -99,3 +99,45 @@ def test_filters_non_numeric_cwe(primevul_path):
     samples = extract_primevul(primevul_path)
     codes = [s.code for s in samples]
     assert "void other() {}" not in codes
+
+
+def test_loads_jsonl(tmp_path):
+    p = tmp_path / "primevul.jsonl"
+    p.write_text(
+        '{"func":"void v(){}","cwe":"CWE-119","target":1,"commit_id":"x","project":"p"}\n'
+        '\n'
+        '{"func":"void s(){}","cwe":"","target":0,"commit_id":"x","project":"p"}\n',
+        encoding="utf-8",
+    )
+    samples = extract_primevul(p)
+    assert any(s.label == 1 and s.cwes == ["CWE-119"] for s in samples)
+    assert any(s.label == 0 for s in samples)
+
+
+def test_loads_parquet(tmp_path):
+    import pandas as pd
+    p = tmp_path / "primevul.parquet"
+    pd.DataFrame([
+        {"func": "void v(){}", "cwe": "CWE-22", "target": 1, "commit_id": "u", "project": "p"},
+    ]).to_parquet(p, index=False)
+    samples = extract_primevul(p)
+    assert samples and samples[0].cwes == ["CWE-22"]
+
+
+def test_parse_cwes_handles_bad_list_literal(tmp_path):
+    # Unparseable list literal -> []; positive is then filtered out (no CWE).
+    p = tmp_path / "primevul.json"
+    p.write_text(json.dumps([
+        {"func": "void v(){}", "cwe": "[bad python literal", "target": 1, "commit_id": "z", "project": "p"},
+    ]))
+    samples = extract_primevul(p)
+    assert samples == []
+
+
+def test_parse_cwes_handles_none_value(tmp_path):
+    p = tmp_path / "primevul.json"
+    p.write_text(json.dumps([
+        {"func": "void s(){}", "cwe": None, "target": 0, "commit_id": "z", "project": "p"},
+    ]))
+    samples = extract_primevul(p)
+    assert samples and samples[0].label == 0

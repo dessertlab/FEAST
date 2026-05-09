@@ -171,3 +171,47 @@ def test_print_helpers_cover_present_missing_empty_and_top_paths(navigator, caps
 
     navigator.print_hierarchy("20")
     assert "No parent" in capsys.readouterr().out
+
+
+def test_main_cli_runs_with_hierarchy_and_top_parent(monkeypatch, capsys, cwe_xml):
+    from ingestion import cwe_navigator
+    argv = ["cwe_navigator", str(cwe_xml), "CWE-89", "--views", "VIEW", "--hierarchy", "--top-parent"]
+    monkeypatch.setattr("sys.argv", argv)
+    cwe_navigator.main()
+    out = capsys.readouterr().out
+    assert "ChildOf Hierarchy" in out
+    assert "Top Parent" in out
+    assert "CWE-89" in out
+
+
+def test_main_cli_handles_missing_file(monkeypatch, capsys, tmp_path):
+    from ingestion import cwe_navigator
+    argv = ["cwe_navigator", str(tmp_path / "nope.xml"), "89"]
+    monkeypatch.setattr("sys.argv", argv)
+    with pytest.raises(SystemExit) as exc:
+        cwe_navigator.main()
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "not found" in err
+
+
+def test_main_cli_handles_parse_error(monkeypatch, capsys, tmp_path):
+    bad = tmp_path / "bad.xml"
+    bad.write_text("not really xml <unclosed")
+    from ingestion import cwe_navigator
+    argv = ["cwe_navigator", str(bad), "89"]
+    monkeypatch.setattr("sys.argv", argv)
+    with pytest.raises(SystemExit) as exc:
+        cwe_navigator.main()
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "parsing XML file" in err
+
+
+def test_main_cli_handles_top_parent_missing(monkeypatch, capsys, cwe_xml):
+    from ingestion import cwe_navigator
+    argv = ["cwe_navigator", str(cwe_xml), "CWE-99999", "--views", "VIEW", "--top-parent"]
+    monkeypatch.setattr("sys.argv", argv)
+    cwe_navigator.main()
+    out = capsys.readouterr().out
+    assert "No top parent found" in out

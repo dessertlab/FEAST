@@ -86,3 +86,27 @@ def test_negatives_have_empty_cwes(secvuleval_csv):
 def test_returns_function_samples(secvuleval_csv):
     samples = extract_secvuleval(secvuleval_csv)
     assert all(isinstance(s, FunctionSample) for s in samples)
+
+
+def test_handles_missing_cwe_list_column(tmp_path):
+    # Empty CSV cell becomes NaN (a float) after pandas read_csv;
+    # _parse_cwe_list must handle the float branch.
+    import pandas as pd
+    p = tmp_path / "secvul.csv"
+    pd.DataFrame([
+        {"func_body": "void v(){}", "is_vulnerable": True,  "cwe_list": None},
+        {"func_body": "void s(){}", "is_vulnerable": False, "cwe_list": None},
+    ]).to_csv(p, index=False)
+    samples = extract_secvuleval(p)
+    # The vulnerable row has no CWE -> filtered. Negative is kept.
+    assert len(samples) == 1 and samples[0].label == 0
+
+
+def test_handles_unparseable_list_literal(tmp_path):
+    import pandas as pd
+    p = tmp_path / "secvul.csv"
+    pd.DataFrame([
+        {"func_body": "void v(){}", "is_vulnerable": True,  "cwe_list": "[unparseable"},
+    ]).to_csv(p, index=False)
+    samples = extract_secvuleval(p)
+    assert samples == []
