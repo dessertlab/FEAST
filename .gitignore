@@ -32,6 +32,15 @@ data/*
 *.json.gz
 *.csv.gz
 
+# Re-include raw/
+!data/raw/
+
+# Ignore everything inside raw/
+data/raw/*
+
+# Keep only this zip
+!data/raw/copilot-cwe-scenarios-dataset.zip
+
 # Superpowers internal docs (planning artifacts, not repo content)
 docs/superpowers/
 
