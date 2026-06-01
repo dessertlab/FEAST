@@ -22,7 +22,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["ingestion*"]
+include = ["ingestion*", "analysis*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

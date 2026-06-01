@@ -4,6 +4,7 @@ import sys
 import tarfile
 import urllib.request
 import zipfile
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pandas as pd
@@ -565,6 +566,122 @@ def test_materialize_all_languages_writes_c_java_python(tmp_path, monkeypatch):
     assert (materialized_dir / "c_cpp" / "dataset" / "c_cpp-sample.c").exists()
     assert (materialized_dir / "java" / "dataset" / "java-sample.java").exists()
     assert (materialized_dir / "python" / "dataset" / "python-sample.py").exists()
+
+
+
+
+def test_enrich_language_with_sat_reports_uses_runs_and_preserves_empty_tool_columns():
+    merged = pd.DataFrame([
+        {
+            "code": "def a(): pass",
+            "language": "Python",
+            "label": 1,
+            "cwes": ["CWE-79"],
+            "branch": "real",
+            "source": "PyVul",
+            "code_hash": "a" * 64,
+            "sample_id": "sample-a",
+        },
+        {
+            "code": "def b(): pass",
+            "language": "Python",
+            "label": 0,
+            "cwes": [],
+            "branch": "ai",
+            "source": "SecurityEval",
+            "code_hash": "b" * 64,
+            "sample_id": "sample-b",
+        },
+    ])
+    payload = {
+        "tools": [
+            {"name": "bandit", "status": "completed", "hit_count": 1},
+            {"name": "semgrep", "status": "completed", "hit_count": 0},
+            {"name": "pysa", "status": "skipped", "hit_count": 0},
+        ],
+        "runs": [
+            {
+                "file": "pyvul/sample-a.py",
+                "tools": {"bandit": ["CWE-79", "79"], "semgrep": [], "pysa": None},
+            },
+            {
+                "file": "old_path/sample-b.py",
+                "tools": {"bandit": [], "semgrep": ["CWE-89"]},
+            },
+            {
+                "file": "missing.py",
+                "tools": {"bandit": ["CWE-20"]},
+            },
+        ],
+        "findings": [
+            {"file": "pyvul/sample-a.py", "source_tool": "bandit", "cwe_ids": ["CWE-120"]},
+            {"file": "pyvul/sample-a.py", "source_tool": "semgrep", "cwe_ids": []},
+        ],
+    }
+
+    enriched, stats = feast_cli._enrich_language_with_sat_reports(merged, [(Path("python.json"), payload)])
+
+    assert stats["runs"] == 3
+    assert stats["runs_matched"] == 2
+    assert stats["findings"] == 2
+    assert stats["findings_matched"] == 1
+    assert set(stats["tools"]) == {"bandit", "semgrep"}
+    assert "pysa" not in enriched.columns
+    assert enriched.loc[0, "bandit"] == ["CWE-79", "CWE-120"]
+    assert enriched.loc[0, "semgrep"] == []
+    assert enriched.loc[1, "bandit"] == []
+    assert enriched.loc[1, "semgrep"] == ["CWE-89"]
+
+
+def test_cmd_enrich_writes_one_output_parquet_per_language(tmp_path):
+    merged_dir = tmp_path / "merged"
+    reports_dir = tmp_path / "SAT-reports"
+    out_dir = tmp_path / "enriched"
+    merged_dir.mkdir()
+    reports_dir.mkdir()
+
+    pd.DataFrame([{
+        "code": "def a(): pass",
+        "language": "Python",
+        "label": 1,
+        "cwes": ["CWE-79"],
+        "branch": "real",
+        "source": "PyVul",
+        "code_hash": "a" * 64,
+        "sample_id": "sample-a",
+    }]).to_parquet(merged_dir / "python_merged.parquet", index=False)
+    pd.DataFrame([{
+        "code": "class A {}",
+        "language": "Java",
+        "label": 0,
+        "cwes": [],
+        "branch": "synth",
+        "source": "CAPEC_LLM(Java)",
+        "code_hash": "b" * 64,
+        "sample_id": "sample-b",
+    }]).to_parquet(merged_dir / "java_merged.parquet", index=False)
+
+    (reports_dir / "python.json").write_text(
+        """{"tools": [{"name": "semgrep", "status": "completed"}], "runs": [
+          {"file": "pyvul/sample-a.py", "tools": {"semgrep": ["CWE-79"]}}
+        ], "findings": []}""",
+        encoding="utf-8",
+    )
+    (reports_dir / "java.json").write_text(
+        """{"tools": [{"name": "codeql", "status": "completed"}], "runs": [
+          {"file": "capec_llm_java/sample-b.java", "tools": {"codeql": ["CWE-22"]}}
+        ], "findings": []}""",
+        encoding="utf-8",
+    )
+
+    feast_cli.cmd_enrich(SimpleNamespace(merged_dir=merged_dir, reports_dir=reports_dir, out_dir=out_dir))
+
+    python_enriched = pd.read_parquet(out_dir / "python.parquet")
+    java_enriched = pd.read_parquet(out_dir / "java.parquet")
+    assert list(python_enriched["semgrep"])[0] == ["CWE-79"]
+    assert "codeql" not in python_enriched.columns
+    assert list(java_enriched["codeql"])[0] == ["CWE-22"]
+    assert "semgrep" not in java_enriched.columns
 
 
 def test_build_registry_contains_expected_sources():

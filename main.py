@@ -14,6 +14,9 @@ Stage 2 operations:
 Stage 3 operation:
   materialized/   -- individual source files for static analysis tools
 
+Stage 4 operation:
+  enriched/       -- per-language merged samples enriched with per-tool CWE detections
+
 Usage:
   python main.py download                                     # Stage 0: fetch all datasets
   python main.py synthesize                                   # all langs, all sources, default CWE filter
@@ -25,6 +28,7 @@ Usage:
   python main.py synthesize --branches real,synth             # exclude AI-generated
   python main.py materialize                                  # write source files from merged parquets
   python main.py materialize --lang python                    # Python only
+  python main.py enrich                                       # add SAT CWE detections per language
   python main.py list                                         # show all sources
 """
 
@@ -32,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import shutil
 import sys
@@ -49,6 +54,8 @@ RAW_DIR    = ROOT / 'data' / 'raw'
 PROC_DIR   = ROOT / 'data' / 'processed'
 MERGED_DIR = ROOT / 'data' / 'merged'
 MAT_DIR    = ROOT / 'data' / 'materialized'
+SAT_DIR    = ROOT / 'data' / 'SAT-reports'
+ENRICHED_DIR = ROOT / 'data' / 'enriched'
 CWE_XML    = ROOT / 'data' / 'cwec_latest.xml'
 
 _LANG_EXT = {'C/C++': '.c', 'Java': '.java', 'Python': '.py'}
@@ -741,6 +748,332 @@ def cmd_materialize(args) -> None:
     console.print(f'[bold green]Done.[/bold green]  {total_written:,} file(s) written  ->  data/materialized/')
 
 
+# ── enrich command ─────────────────────────────────────────────────────────────
+
+def _normalise_cwe_id(value: object) -> str | None:
+    m = re.fullmatch(r'\s*(?:CWE-?)?(\d+)\s*', str(value or ''), flags=re.IGNORECASE)
+    if not m:
+        return None
+    return f'CWE-{int(m.group(1))}'
+
+
+def _normalise_cwe_values(values: object) -> list[str]:
+    if values is None:
+        return []
+    if isinstance(values, str):
+        raw_values = [values]
+    elif isinstance(values, dict):
+        raw_values = values.values()
+    else:
+        try:
+            raw_values = list(values)
+        except TypeError:
+            raw_values = [values]
+    return [cwe for cwe in (_normalise_cwe_id(value) for value in raw_values) if cwe]
+
+
+def _sort_cwes(cwes) -> list[str]:
+    def _key(cwe: str) -> tuple[int, str]:
+        m = re.fullmatch(r'CWE-(\d+)', cwe)
+        return (int(m.group(1)), cwe) if m else (10**9, cwe)
+    return sorted(set(cwes), key=_key)
+
+
+def _report_language(report_path: Path) -> str | None:
+    stem = report_path.stem.lower().replace('-', '_')
+    if stem in {'c', 'cpp', 'c_cpp', 'cxx'}:
+        return 'C/C++'
+    return _LANG_ALIASES.get(stem)
+
+
+def _normalise_report_file(value: object) -> str:
+    return str(value or '').replace('\\', '/').lstrip('./')
+
+
+def _report_sample_id(file_value: object) -> str:
+    name = _normalise_report_file(file_value).rsplit('/', 1)[-1]
+    return name.rsplit('.', 1)[0]
+
+
+def _sat_path_for_row(row) -> str:
+    ext = _LANG_EXT.get(str(row['language']), '')
+    stem = _sample_file_stem(row.get('sample_id'), row.get('code_hash'))
+    return f'{_dataset_dir_name(row.get("source"))}/{stem}{ext}'
+
+
+def _tool_column_map(tools: set[str], reserved_columns) -> dict[str, str]:
+    used = {str(c) for c in reserved_columns}
+    out: dict[str, str] = {}
+    for tool in sorted(tools, key=str.lower):
+        base = _slug(str(tool)) or 'tool'
+        col = base if base not in used else f'{base}_tool'
+        i = 2
+        while col in used:
+            col = f'{base}_tool_{i}'
+            i += 1
+        used.add(col)
+        out[tool] = col
+    return out
+
+
+def _report_tool_names(payload: dict) -> set[str]:
+    tools: set[str] = set()
+
+    for item in payload.get('tools', []) or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get('name') or '').strip()
+        status = str(item.get('status') or '').strip().lower()
+        if name and status != 'skipped':
+            tools.add(name)
+
+    for run in payload.get('runs', []) or []:
+        if not isinstance(run, dict) or not isinstance(run.get('tools'), dict):
+            continue
+        for name, values in run['tools'].items():
+            if values is not None:
+                tools.add(str(name))
+
+    for finding in payload.get('findings', []) or []:
+        if not isinstance(finding, dict):
+            continue
+        name = str(finding.get('source_tool') or '').strip()
+        if name:
+            tools.add(name)
+
+    return tools
+
+
+def _load_merged_by_language(merged_dir: Path) -> dict[str, pd.DataFrame]:
+    paths = sorted(merged_dir.glob('*.parquet'))
+    if not paths:
+        raise FileNotFoundError(f'no parquet files found under {merged_dir}')
+
+    out: dict[str, pd.DataFrame] = {}
+    required = {'language', 'source', 'code_hash'}
+    for path in paths:
+        df = pd.read_parquet(path)
+        missing = required - set(df.columns)
+        if missing:
+            raise ValueError(f'{path} missing required column(s): {", ".join(sorted(missing))}')
+        if 'sample_id' not in df.columns:
+            df = df.copy()
+            df['sample_id'] = df['code_hash'].astype(str).str[:16]
+
+        if df.empty:
+            language = _LANG_ALIASES.get(path.stem.removesuffix('_merged').lower())
+            if language is None:
+                continue
+            out[language] = df
+            continue
+
+        languages = sorted(set(df['language'].dropna().astype(str)))
+        if len(languages) != 1:
+            raise ValueError(f'{path} contains multiple languages: {", ".join(languages)}')
+        out[languages[0]] = df.reset_index(drop=True)
+
+    return out
+
+
+def _load_sat_reports_by_language(reports_dir: Path) -> dict[str, list[tuple[Path, dict]]]:
+    out: dict[str, list[tuple[Path, dict]]] = {}
+    for path in sorted(reports_dir.glob('*.json')):
+        language = _report_language(path)
+        if language is None:
+            console.print(f'  [yellow]~[/yellow]  {path.name}: cannot infer language from filename -- skipped')
+            continue
+        with path.open(encoding='utf-8') as fh:
+            payload = json.load(fh)
+        if not isinstance(payload, dict):
+            console.print(f'  [yellow]~[/yellow]  {path.name}: expected JSON object -- skipped')
+            continue
+        out.setdefault(language, []).append((path, payload))
+    return out
+
+
+def _row_lookup(df: pd.DataFrame) -> tuple[dict[str, list[int]], dict[str, list[int]]]:
+    by_path: dict[str, list[int]] = {}
+    by_sample: dict[str, list[int]] = {}
+    paths = df.apply(_sat_path_for_row, axis=1)
+    samples = df['sample_id'].astype(str)
+    for idx, (path, sample_id) in enumerate(zip(paths, samples, strict=False)):
+        by_path.setdefault(path, []).append(idx)
+        by_sample.setdefault(sample_id, []).append(idx)
+    return by_path, by_sample
+
+
+def _match_report_rows(
+    report_file: object,
+    by_path: dict[str, list[int]],
+    by_sample: dict[str, list[int]],
+) -> list[int] | None:
+    path = _normalise_report_file(report_file)
+    row_ids = by_path.get(path)
+    if row_ids is not None:
+        return row_ids
+
+    sample_id = _report_sample_id(path)
+    sample_matches = by_sample.get(sample_id, [])
+    if len(sample_matches) == 1:
+        return sample_matches
+    return None
+
+
+def _enrich_language_with_sat_reports(
+    merged: pd.DataFrame,
+    reports: list[tuple[Path, dict]],
+) -> tuple[pd.DataFrame, dict[str, object]]:
+    df = merged.copy().reset_index(drop=True)
+    if df.empty:
+        return df, {'tools': [], 'runs': 0, 'runs_matched': 0, 'findings': 0, 'findings_matched': 0, 'unmatched': 0, 'skipped': 0}
+
+    for col in ['language', 'source', 'code_hash', 'sample_id']:
+        if col not in df.columns:
+            raise ValueError(f'merged parquet missing required column: {col}')
+
+    by_path, by_sample = _row_lookup(df)
+    per_row: dict[int, dict[str, set[str]]] = {}
+    tools: set[str] = set()
+    runs = runs_matched = findings = findings_matched = unmatched = skipped = 0
+
+    def _add(row_ids: list[int], tool: str, cwes: list[str]) -> None:
+        tools.add(tool)
+        for row_id in row_ids:
+            row_tools = per_row.setdefault(row_id, {})
+            row_tools.setdefault(tool, set()).update(cwes)
+
+    for _report_path, payload in reports:
+        tools.update(_report_tool_names(payload))
+
+        report_runs = payload.get('runs', []) or []
+        if isinstance(report_runs, list):
+            for run in report_runs:
+                if not isinstance(run, dict):
+                    skipped += 1
+                    continue
+                row_ids = _match_report_rows(run.get('file'), by_path, by_sample)
+                runs += 1
+                if not row_ids:
+                    unmatched += 1
+                    continue
+                runs_matched += 1
+
+                run_tools = run.get('tools') or {}
+                if not isinstance(run_tools, dict):
+                    skipped += 1
+                    continue
+                for tool, values in run_tools.items():
+                    tool = str(tool).strip()
+                    if not tool or values is None:
+                        continue
+                    _add(row_ids, tool, _normalise_cwe_values(values))
+        else:
+            skipped += 1
+
+        report_findings = payload.get('findings', []) or []
+        if isinstance(report_findings, list):
+            for finding in report_findings:
+                findings += 1
+                if not isinstance(finding, dict):
+                    skipped += 1
+                    continue
+                tool = str(finding.get('source_tool') or '').strip()
+                if not tool:
+                    skipped += 1
+                    continue
+                tools.add(tool)
+                cwes = _normalise_cwe_values(finding.get('cwe_ids'))
+                if not cwes:
+                    skipped += 1
+                    continue
+                row_ids = _match_report_rows(finding.get('file'), by_path, by_sample)
+                if not row_ids:
+                    unmatched += 1
+                    continue
+                findings_matched += 1
+                _add(row_ids, tool, cwes)
+        else:
+            skipped += 1
+
+    tool_cols = _tool_column_map(tools, df.columns)
+    for col in tool_cols.values():
+        df[col] = [[] for _ in range(len(df))]
+
+    for row_id, row_tools in per_row.items():
+        for tool, cwes in row_tools.items():
+            df.at[row_id, tool_cols[tool]] = _sort_cwes(cwes)
+
+    return df, {
+        'tools': [tool_cols[tool] for tool in sorted(tool_cols, key=str.lower)],
+        'runs': runs,
+        'runs_matched': runs_matched,
+        'findings': findings,
+        'findings_matched': findings_matched,
+        'unmatched': unmatched,
+        'skipped': skipped,
+    }
+
+
+def _enriched_output_path(out_dir: Path, language: str) -> Path:
+    return out_dir / f'{_LANG_SLUG[language]}.parquet'
+
+
+def cmd_enrich(args) -> None:
+    """Stage 4: enrich each language parquet with per-tool SAT CWE detections."""
+    merged_dir = args.merged_dir
+    reports_dir = args.reports_dir
+    out_dir = args.out_dir
+
+    try:
+        merged_by_language = _load_merged_by_language(merged_dir)
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f'[red]✗[/red]  {e}')
+        sys.exit(1)
+
+    reports_by_language = _load_sat_reports_by_language(reports_dir)
+    if not reports_by_language:
+        console.print(f'[red]✗[/red]  no language SAT report JSON files found under {reports_dir}')
+        sys.exit(1)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    summary: list[tuple[str, int, Path, dict[str, object]]] = []
+
+    for language in ALL_LANGS:
+        merged = merged_by_language.get(language)
+        if merged is None:
+            continue
+        reports = reports_by_language.get(language, [])
+        if not reports:
+            console.print(f'[yellow]~[/yellow]  {language}: no SAT report found -- writing merged rows without tool columns')
+
+        enriched, stats = _enrich_language_with_sat_reports(merged, reports)
+        out = _enriched_output_path(out_dir, language)
+        enriched.to_parquet(out, index=False)
+        summary.append((language, len(enriched), out, stats))
+
+    t = Table(box=box.SIMPLE, show_header=True, header_style='bold dim', pad_edge=False)
+    t.add_column('Language', style='cyan', no_wrap=True)
+    t.add_column('Rows', justify='right')
+    t.add_column('Runs', justify='right')
+    t.add_column('Run matches', justify='right')
+    t.add_column('Finding matches', justify='right')
+    t.add_column('Unmatched', justify='right')
+    t.add_column('Tool columns')
+    t.add_column('File', style='dim')
+    for language, rows, out, stats in summary:
+        t.add_row(
+            language,
+            f'{rows:,}',
+            f'{stats["runs"]:,}',
+            f'{stats["runs_matched"]:,}',
+            f'{stats["findings_matched"]:,}',
+            f'{stats["unmatched"]:,}',
+            ', '.join(stats['tools']) or '-',
+            _display_path(out),
+        )
+    console.print(t)
+
+
 # ── download command ───────────────────────────────────────────────────────────
 
 def cmd_download(_args) -> None:
@@ -997,6 +1330,7 @@ examples:
   python main.py synthesize --branches real,synth
   python main.py materialize
   python main.py materialize --lang python
+  python main.py enrich
   python main.py list
 """,
     )
@@ -1060,6 +1394,24 @@ examples:
         help='Re-write files that already exist  [default: skip existing]',
     )
 
+    # ── enrich ─────────────────────────────────────────────────────────────────
+    enr = sub.add_parser(
+        'enrich', aliases=['en'],
+        help='Add per-tool SAT CWE detections  ->  enriched/',
+    )
+    enr.add_argument(
+        '--merged-dir', type=Path, default=MERGED_DIR, metavar='DIR', dest='merged_dir',
+        help='Directory containing merged parquet files  [default: data/merged/]',
+    )
+    enr.add_argument(
+        '--reports-dir', type=Path, default=SAT_DIR, metavar='DIR', dest='reports_dir',
+        help='Directory containing SAT report JSON files  [default: data/SAT-reports/]',
+    )
+    enr.add_argument(
+        '--out-dir', type=Path, default=ENRICHED_DIR, metavar='DIR', dest='out_dir',
+        help='Output directory for per-language parquet files  [default: data/enriched/]',
+    )
+
     # ── list ───────────────────────────────────────────────────────────────────
     sub.add_parser('list', aliases=['ls'], help='Show all available source datasets')
 
@@ -1083,6 +1435,8 @@ def main() -> None:
             cmd_synthesize(args)
         case 'materialize' | 'mat' | 'm':
             cmd_materialize(args)
+        case 'enrich' | 'en':
+            cmd_enrich(args)
         case 'list' | 'ls':
             cmd_list(args)
 

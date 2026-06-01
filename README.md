@@ -21,12 +21,14 @@ Stage 2  Synthesis        02_synthesis.ipynb | main.py synthesize
 Stage 3  Materialization  03_materialize.ipynb | main.py materialize
            Write source files          ->  data/materialized/
 
-Stage 4  Tool execution            (planned)
+Stage 4  Tool enrichment    main.py enrich
+           Collapse SAT JSON reports + merged parquets  ->  data/enriched/<lang>.parquet
+
 Stage 5  Per-CWE metric computation (planned)
 Stage 6  DST fusion                 (planned)
 ```
 
-Stages 0–3 are fully implemented. Stages 4–6 are planned.
+Stages 0–4 are implemented. Stages 5–6 are planned.
 
 ---
 
@@ -58,13 +60,15 @@ FEAST/
 │   │   ├── c_cpp_merged.parquet
 │   │   ├── java_merged.parquet
 │   │   └── python_merged.parquet
-│   └── materialized/                # individual source files for static analysis
-│       ├── c_cpp/
-│       │   ├── <dataset>/           # one directory per source dataset
-│       │   │   └── <id>.c           # one file per sample
-│       │   └── index.parquet        # sample_id -> source, label, cwes, branch
-│       ├── java/
-│       └── python/
+│   ├── materialized/                # individual source files for static analysis
+│   │   ├── c_cpp/
+│   │   │   ├── <dataset>/           # one directory per source dataset
+│   │   │   │   └── <id>.c           # one file per sample
+│   │   │   └── index.parquet        # sample_id -> source, label, cwes, branch
+│   │   ├── java/
+│   │   └── python/
+│   ├── SAT-reports/                 # static-analysis JSON reports
+│   └── enriched/                    # per-language merged samples + per-tool CWE columns
 ├── outputs/
 │   ├── stage1_c_cpp_stats.xlsx
 │   ├── stage1_java_stats.xlsx
@@ -237,6 +241,12 @@ Files are skipped if they already exist (set `OVERWRITE = True` to force re-writ
 
 > **Java note:** Samples are function bodies extracted from CVE patches, not compilable top-level classes. Static analysis tools that require a full compilation unit will need an additional wrapping step.
 
+### `main.py enrich` — Stage 4
+
+Reads SAT report JSON files from `data/SAT-reports/` and merged parquet files from `data/merged/`, then writes one enriched parquet per language to `data/enriched/<lang>.parquet` (`c_cpp.parquet`, `java.parquet`, `python.parquet`). The output preserves the merged dataset columns and adds one list-valued column per static-analysis tool that actually ran for that language. Each tool column contains the unique CWE IDs reported by that tool for the sample, or an empty list when the tool reported no CWE for that sample.
+
+Matching primarily uses the materialized path shape `<dataset>/<sample_id>.<ext>` and falls back to `sample_id` within the same language when older report paths differ slightly. The enrich step reads the per-sample `runs[].tools` section first so tools with zero findings are still represented, and then folds in `findings` as additional evidence.
+
 ---
 
 ## CLI
@@ -340,3 +350,28 @@ uv run python main.py materialize --lang python
 # force re-write all existing files
 uv run python main.py materialize --overwrite
 ```
+
+### `enrich` — add SAT results to merged samples
+
+```bash
+uv run python main.py enrich [OPTIONS]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--merged-dir DIR` | `data/merged/` | Directory containing merged parquet files |
+| `--reports-dir DIR` | `data/SAT-reports/` | Directory containing SAT report JSON files |
+| `--out-dir DIR` | `data/enriched/` | Output directory for per-language parquet files |
+
+Reads every `*.parquet` in `data/merged/` and every language-named `*.json` in `data/SAT-reports/`, then writes one parquet per language with one additional list-valued column per tool that ran for that language.
+
+**Examples:**
+
+```bash
+# default enrichment
+uv run python main.py enrich
+
+# custom output directory
+uv run python main.py enrich --out-dir data/enriched_experiment
+```
+
