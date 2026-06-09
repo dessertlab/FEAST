@@ -10,6 +10,9 @@ dependencies = [
     "huggingface-hub>=0.24",
     "gdown>=5.0",
     "datasets>=2.0",
+    "matplotlib>=3.5",
+    "scikit-learn>=1.7.2",
+    "iterative-stratification>=0.1.9",
 ]
 
 [project.optional-dependencies]

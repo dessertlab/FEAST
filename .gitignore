@@ -38,7 +38,8 @@ data/*
 # Ignore everything inside raw/
 data/raw/*
 
-# Keep only this zip
+# Keep only these
+!data/SAT-reports/
 !data/raw/copilot-cwe-scenarios-dataset.zip
 
 # Superpowers internal docs (planning artifacts, not repo content)

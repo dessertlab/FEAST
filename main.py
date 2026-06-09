@@ -56,6 +56,7 @@ MERGED_DIR = ROOT / 'data' / 'merged'
 MAT_DIR    = ROOT / 'data' / 'materialized'
 SAT_DIR    = ROOT / 'data' / 'SAT-reports'
 ENRICHED_DIR = ROOT / 'data' / 'enriched'
+RESULTS_DIR = ROOT / 'data' / 'results'
 CWE_XML    = ROOT / 'data' / 'cwec_latest.xml'
 
 _LANG_EXT = {'C/C++': '.c', 'Java': '.java', 'Python': '.py'}
@@ -1311,6 +1312,71 @@ def cmd_download(_args) -> None:
         console.print('[bold green]All datasets present.[/bold green]  Run [cyan]synthesize[/cyan] next.')
 
 
+
+
+KNOWN_LANGUAGE_SLUGS = ['c_cpp', 'java', 'python']
+_FUSION_LANG_ALIASES = {'c': 'c_cpp', 'cpp': 'c_cpp', 'c++': 'c_cpp', 'c/c++': 'c_cpp', 'py': 'python'}
+
+
+def _fusion_lang_slug(language: str) -> str:
+    language = language.lower().strip()
+    return _FUSION_LANG_ALIASES.get(language, language)
+
+
+# ── fusion / analysis ──────────────────────────────────────────────────────────
+
+def cmd_fusion(args) -> None:
+    """Stage 5: canonical-family calibration + fusion-strategy comparison.
+
+    Thin wrapper over analysis.experiment.run, which canonicalises CWEs to a CWE-1000
+    level (pillar/subcategory/class), calibrates per-(tool, family) reliability with exact
+    matching, runs every fusion strategy under cross-validation, and writes per-level
+    results to data/results/<language>/<level>/.
+    """
+    from analysis.experiment import run
+
+    languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
+    exclude = [tok for tok in (args.exclude or '').split(',') if tok.strip()]
+    run(
+        level=args.level,
+        languages=languages,
+        n_splits=args.n_splits,
+        min_cwe_count=args.min_cwe_count,
+        threshold=args.threshold,
+        exclude=exclude,
+        seed=args.seed,
+        enriched_dir=ENRICHED_DIR,
+        results_root=RESULTS_DIR,
+    )
+
+
+def cmd_diagnose(args) -> None:
+    """Stage 5b: tool-complementarity diagnostics downstream of canonicalisation.
+
+    Measures whether multi-tool fusion can beat the best single tool on these data:
+    oracle/coverage headroom, error diversity, per-(tool, family) reliability heatmap, and
+    cross-validated marginal contribution + conditional value. Writes to
+    data/results/<language>/<level>/diagnostics/.
+    """
+    from analysis.canonical import LEVELS
+    from analysis.complementarity import run_diagnostics
+
+    languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
+    levels = list(LEVELS) if args.level == 'all' else [args.level]
+    exclude = [tok for tok in (args.exclude or '').split(',') if tok.strip()]
+    for language in languages:
+        for level in levels:
+            try:
+                run_diagnostics(
+                    language, level,
+                    n_splits=args.n_splits, min_cwe_count=args.min_cwe_count,
+                    exclude=exclude, seed=args.seed,
+                    enriched_dir=ENRICHED_DIR, results_root=RESULTS_DIR,
+                )
+            except (FileNotFoundError, ValueError) as exc:
+                console.print(f'[yellow]{language}/{level}: {exc}[/yellow]')
+
+
 # ── argument parser ────────────────────────────────────────────────────────────
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -1331,6 +1397,8 @@ examples:
   python main.py materialize
   python main.py materialize --lang python
   python main.py enrich
+  python main.py fusion --lang python
+  python main.py fusion --lang python --exclude devaic
   python main.py list
 """,
     )
@@ -1412,6 +1480,59 @@ examples:
         help='Output directory for per-language parquet files  [default: data/enriched/]',
     )
 
+    # ── fusion ─────────────────────────────────────────────────────────────────
+    fus = sub.add_parser(
+        'fusion', aliases=['fuse', 'f', 'analyze'],
+        help='Canonical-family calibration + compare fusion strategies  ->  results/',
+    )
+    fus.add_argument(
+        '--lang', default='all', metavar='LANG',
+        help='Language to fuse: c, java, python, all  [default: all]',
+    )
+    fus.add_argument(
+        '--level', default='all', choices=['pillar', 'subcategory', 'class', 'all'],
+        help='CWE-1000 canonicalisation level (or all three)  [default: all]',
+    )
+    fus.add_argument(
+        '--exclude', default=None, metavar='TOOL1,TOOL2,...',
+        help='Comma-separated tools to exclude from the ensemble (their families leave the grid too)',
+    )
+    fus.add_argument(
+        '--n-splits', type=int, default=5, metavar='N', dest='n_splits',
+        help='Number of cross-validation folds  [default: 5]',
+    )
+    fus.add_argument(
+        '--min-cwe-count', type=int, default=None, metavar='M', dest='min_cwe_count',
+        help='Drop CWEs with fewer than M exact ground-truth occurrences from the '
+             'grid and stratification  [default: equal to --n-splits]',
+    )
+    fus.add_argument(
+        '--threshold', type=int, default=2, metavar='K',
+        help='K for the traditional K-of-N voting baseline  [default: 2]',
+    )
+    fus.add_argument(
+        '--seed', type=int, default=42, metavar='S',
+        help='Random seed for fold assignment  [default: 42]',
+    )
+
+    # ── diagnose ───────────────────────────────────────────────────────────────
+    dia = sub.add_parser(
+        'diagnose', aliases=['diag'],
+        help='Tool-complementarity diagnostics (oracle/diversity/CV)  ->  results/.../diagnostics/',
+    )
+    dia.add_argument('--lang', default='all', metavar='LANG',
+                     help='Language: c, java, python, all  [default: all]')
+    dia.add_argument('--level', default='class', choices=['pillar', 'subcategory', 'class', 'all'],
+                     help='CWE-1000 canonicalisation level (or all three)  [default: class]')
+    dia.add_argument('--exclude', default=None, metavar='TOOL1,TOOL2,...',
+                     help='Comma-separated tools to exclude')
+    dia.add_argument('--n-splits', type=int, default=5, metavar='N', dest='n_splits',
+                     help='Number of cross-validation folds  [default: 5]')
+    dia.add_argument('--min-cwe-count', type=int, default=None, metavar='M', dest='min_cwe_count',
+                     help='Min exact GT occurrences to keep a family  [default: = --n-splits]')
+    dia.add_argument('--seed', type=int, default=42, metavar='S',
+                     help='Random seed for fold assignment  [default: 42]')
+
     # ── list ───────────────────────────────────────────────────────────────────
     sub.add_parser('list', aliases=['ls'], help='Show all available source datasets')
 
@@ -1437,6 +1558,10 @@ def main() -> None:
             cmd_materialize(args)
         case 'enrich' | 'en':
             cmd_enrich(args)
+        case 'fusion' | 'fuse' | 'f' | 'analyze':
+            cmd_fusion(args)
+        case 'diagnose' | 'diag':
+            cmd_diagnose(args)
         case 'list' | 'ls':
             cmd_list(args)
 

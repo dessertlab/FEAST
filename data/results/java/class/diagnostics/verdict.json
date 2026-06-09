@@ -1,0 +1,22 @@
+{
+  "any_tool_adds_signal": true,
+  "auc_all_tools": 0.6404238313019948,
+  "auc_best_single": 0.586026755116196,
+  "auc_gain_full_ensemble": 0.05439707618579881,
+  "best_tool_by_auc": "semgrep",
+  "detection_best_tool_recall": 0.4180327868852459,
+  "detection_or_recall": 0.46792587312900924,
+  "detection_recall_headroom": 0.04989308624376332,
+  "family_best_tool": "semgrep",
+  "family_best_tool_recall": 0.21425742574257425,
+  "family_or_recall": 0.25478547854785477,
+  "family_recall_headroom": 0.04052805280528052,
+  "language": "java",
+  "level": "class",
+  "n_families": 38,
+  "tools": [
+    "codeql",
+    "joern",
+    "semgrep"
+  ]
+}

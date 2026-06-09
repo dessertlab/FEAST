@@ -1,104 +1,53 @@
-
 import pandas as pd
 
-from analysis.fusion import (
-    WeightedVotingStrategy,
-    all_fusion_predictions,
-    evaluate_predictions,
-    traditional_vote_predictions,
-    weighted_vote_predictions,
-)
+from analysis.calibration import compute_reliability
+from analysis.fusion import detection_from_predictions, evaluate_predictions, run_fusion
 
 
-def _metrics():
+def _canonicalised_df():
+    # Families already assigned. Two tools, families CWE-1 / CWE-2.
     return pd.DataFrame([
-        {
-            "tool": "bandit", "cwe": "CWE-79", "tp": 1, "fp": 0, "tn": 2, "fn": 1,
-            "ppv": 1.0, "npv": 2 / 3, "fpr": 0.0, "fnr": 0.5, "supported": True,
-        },
-        {
-            "tool": "semgrep", "cwe": "CWE-79", "tp": 0, "fp": 0, "tn": 2, "fn": 2,
-            "ppv": None, "npv": 0.5, "fpr": 0.0, "fnr": 1.0, "supported": False,
-        },
+        {"sample_id": "a", "label": 1, "cwes": ["CWE-1"], "toolA": ["CWE-1"], "toolB": ["CWE-1"]},
+        {"sample_id": "b", "label": 1, "cwes": ["CWE-1"], "toolA": ["CWE-1"], "toolB": []},
+        {"sample_id": "c", "label": 0, "cwes": [],        "toolA": [],        "toolB": []},
+        {"sample_id": "d", "label": 1, "cwes": ["CWE-2"], "toolA": ["CWE-2"], "toolB": ["CWE-2"]},
+        {"sample_id": "e", "label": 0, "cwes": [],        "toolA": ["CWE-1"], "toolB": []},
     ])
 
 
-def test_weighted_voting_unsupported_tools_abstain_even_when_they_fire():
-    df = pd.DataFrame([
-        {"sample_id": "a", "cwes": ["CWE-79"], "bandit": [], "semgrep": ["CWE-79"]},
-    ])
+def test_run_fusion_emits_shared_schema_for_every_strategy():
+    df = _canonicalised_df()
+    tools, families = ["toolA", "toolB"], ["CWE-1", "CWE-2"]
+    reliability = compute_reliability(df, tools, families)
+    preds = run_fusion(df, df, reliability, tools, families, threshold=2)
 
-    predictions = weighted_vote_predictions(
-        df,
-        _metrics(),
-        WeightedVotingStrategy("ppv", "npv"),
-        tools=["bandit", "semgrep"],
-        cwes=["CWE-79"],
-    )
-
-    row = predictions.iloc[0]
-    assert row["tools_supported"] == 1
-    assert row["tools_abstained"] == 1
-    assert row["tools_fired"] == 0
-    assert row["safe_score"] == 2 / 3
-    assert row["vuln_score"] == 0
-    assert bool(row["prediction"]) is False
+    assert {"strategy", "family", "row_index", "prediction", "score", "label"} <= set(preds.columns)
+    # every (strategy, family) pair scored on every row
+    per_strategy_rows = preds.groupby("strategy").size()
+    assert (per_strategy_rows == len(df) * len(families)).all()
+    # labels follow exact family membership: row 0 (GT={CWE-1}) is positive for CWE-1,
+    # negative for CWE-2, regardless of strategy.
+    row0 = preds[preds["row_index"] == 0]
+    assert row0[row0["family"] == "CWE-1"]["label"].all()
+    assert not row0[row0["family"] == "CWE-2"]["label"].any()
 
 
-def test_traditional_voting_can_run_fixed_or_supported_only_baseline():
-    df = pd.DataFrame([
-        {"sample_id": "a", "cwes": ["CWE-79"], "bandit": ["CWE-79"], "semgrep": ["CWE-79"]},
-    ])
-
-    fixed = traditional_vote_predictions(df, tools=["bandit", "semgrep"], cwes=["CWE-79"], threshold=2)
-    supported = traditional_vote_predictions(
-        df,
-        tools=["bandit", "semgrep"],
-        cwes=["CWE-79"],
-        threshold=1,
-        metrics=_metrics(),
-        supported_only=True,
-    )
-
-    assert bool(fixed.iloc[0]["prediction"]) is True
-    assert fixed.iloc[0]["tools_supported"] == 2
-    assert bool(supported.iloc[0]["prediction"]) is True
-    assert supported.iloc[0]["tools_supported"] == 1
-    assert supported.iloc[0]["tools_abstained"] == 1
+def test_evaluate_predictions_groups_per_strategy_family():
+    df = _canonicalised_df()
+    tools, families = ["toolA", "toolB"], ["CWE-1", "CWE-2"]
+    reliability = compute_reliability(df, tools, families)
+    preds = run_fusion(df, df, reliability, tools, families, threshold=2)
+    metrics = evaluate_predictions(preds, group_cols=("strategy", "family"))
+    assert {"strategy", "family", "precision", "recall", "f2"} <= set(metrics.columns)
+    assert len(metrics) == preds["strategy"].nunique() * len(families)
 
 
-def test_evaluate_predictions_reports_f_scores_and_auc():
-    predictions = pd.DataFrame([
-        {"strategy": "s", "cwe": "CWE-79", "label": True, "prediction": True, "score": 0.9},
-        {"strategy": "s", "cwe": "CWE-79", "label": False, "prediction": False, "score": 0.1},
-        {"strategy": "s", "cwe": "CWE-79", "label": True, "prediction": True, "score": 0.8},
-        {"strategy": "s", "cwe": "CWE-79", "label": False, "prediction": False, "score": 0.2},
-    ])
-
-    metrics = evaluate_predictions(predictions)
-
-    row = metrics.iloc[0]
-    assert row["f1"] == 1.0
-    assert row["f2"] == 1.0
-    assert row["roc_auc"] == 1.0
-    assert row["pr_auc"] == 1.0
-
-
-def test_all_fusion_predictions_includes_traditional_and_weighted_strategies():
-    df = pd.DataFrame([
-        {"sample_id": "a", "cwes": ["CWE-79"], "bandit": ["CWE-79"], "semgrep": []},
-    ])
-
-    predictions = all_fusion_predictions(
-        df,
-        _metrics(),
-        tools=["bandit", "semgrep"],
-        cwes=["CWE-79"],
-        strategies=(WeightedVotingStrategy("ppv", "npv"),),
-    )
-
-    assert set(predictions["strategy"]) == {
-        "traditional_2_of_2",
-        "traditional_2_of_supported",
-        "weighted_fire_ppv_silence_npv",
-    }
+def test_detection_collapses_to_row_level():
+    df = _canonicalised_df()
+    tools, families = ["toolA", "toolB"], ["CWE-1", "CWE-2"]
+    reliability = compute_reliability(df, tools, families)
+    preds = run_fusion(df, df, reliability, tools, families, threshold=1)
+    det = detection_from_predictions(preds, df)
+    # one detection row per (strategy, dataframe row)
+    assert len(det) == preds["strategy"].nunique() * len(df)
+    assert set(det["label"].unique()) <= {True, False}

@@ -1,0 +1,23 @@
+{
+  "excluded": [],
+  "language": "java",
+  "level": "pillar",
+  "n_splits": 5,
+  "restriction": {
+    "dropped_below_min_count": 0,
+    "dropped_unsupported": 1,
+    "families_kept": 9,
+    "families_present": 10,
+    "gt_occurrences_kept": 8125,
+    "gt_occurrences_kept_frac": 0.9906120458424774,
+    "gt_occurrences_total": 8202,
+    "min_cwe_count": 5
+  },
+  "seed": 42,
+  "threshold": 2,
+  "tools": [
+    "codeql",
+    "joern",
+    "semgrep"
+  ]
+}

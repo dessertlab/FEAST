@@ -1,0 +1,16 @@
+tools,n_tools,count
+∅ (missed),0,7125
+bandit,1,412
+codeql,1,357
+bandit+semgrep,2,324
+semgrep,1,193
+bandit+codeql+semgrep,3,160
+codeql+semgrep,2,117
+pylint+semgrep,2,49
+bandit+codeql,2,44
+pylint,1,25
+codeql+pylint+semgrep,3,15
+bandit+pylint,2,12
+bandit+codeql+pylint+semgrep,4,8
+bandit+codeql+pylint,3,7
+bandit+pylint+semgrep,3,5

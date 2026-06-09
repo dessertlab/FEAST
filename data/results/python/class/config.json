@@ -1,0 +1,26 @@
+{
+  "excluded": [
+    "devaic"
+  ],
+  "language": "python",
+  "level": "class",
+  "n_splits": 5,
+  "restriction": {
+    "dropped_below_min_count": 3,
+    "dropped_unsupported": 74,
+    "families_kept": 35,
+    "families_present": 112,
+    "gt_occurrences_kept": 8853,
+    "gt_occurrences_kept_frac": 0.7121138996138996,
+    "gt_occurrences_total": 12432,
+    "min_cwe_count": 5
+  },
+  "seed": 42,
+  "threshold": 2,
+  "tools": [
+    "bandit",
+    "codeql",
+    "pylint",
+    "semgrep"
+  ]
+}
