@@ -1,0 +1,157 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath}
+
+\title{tecniche fusion}
+\date{June 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Per-CWE Analysis}
+
+\section{Behavior-Knowledge Space (BKS)}
+Let $L$ be the number of analyzers and let $e_i(x)\in\{0,1\}$ denote the decision produced by analyzer $i$ for a code artifact $x$,
+where $1$ indicates the detection of a vulnerability and $0$ otherwise.
+Each artifact is therefore represented by a behavior vector
+
+\begin{equation}
+E(x) = (e_1(x), e_2(x), \ldots, e_L(x)),
+\end{equation}
+
+which encodes the joint behavior of all analyzers.
+During training, the Behavior-Knowledge Space (BKS) stores, for each observed behavior vector $E$,
+the number of occurrences associated with each ground-truth class $c$.
+Let $N(E,c)$ denote the number of training instances exhibiting behavior pattern $E$ and belonging to class $c$.
+The posterior probability of class $c$ given the observed behavior is estimated empirically as
+
+\begin{equation}
+P(c \mid E) =
+\frac{N(E,c)}
+{\sum_{c'} N(E,c')}.
+\end{equation}
+
+During inference, a new artifact is assigned to the class maximizing the estimated posterior probability:
+
+\begin{equation}
+\hat{c} =
+\arg\max_c P(c \mid E).
+\end{equation}
+
+(Per CWE analysis): As an illustrative example, consider three static analyzers, namely CodeQL, Semgrep, and Joern.
+Suppose a code fragment produces the behavior vector $E=(1,0,0)$, indicating that CodeQL reports a vulnerability while Semgrep and Joern do not.
+If the training set contains $50$ occurrences of this pattern, of which $42$ correspond to true vulnerabilities
+and $8$ to non-vulnerable artifacts, the estimated posterior probability is
+
+\begin{equation}
+P(\text{vulnerable} \mid E=(1,0,0))
+=
+\frac{42}{42+8}
+=
+0.84.
+\end{equation}
+
+Consequently, the artifact is classified as vulnerable with an estimated confidence of $84\%$.
+Unlike majority-voting schemes which only consider the number of analyzers in agreement (and would have set this combination as safe),
+BKS explicitly models the empirical relationship between specific combinations of findings and the corresponding ground truth.
+Furthermore, unlike Na\"ive Bayes-based fusion approaches, BKS does not require conditional independence among analyzer outputs,
+allowing it to capture the strong dependencies that typically arise between static analysis tools operating on the same source code.
+This property is particularly valuable in vulnerability detection, where recurring patterns of agreement and disagreement
+among analyzers often provide stronger predictive power than individual tool decisions considered in isolation.
+
+
+\section{Naive Bayes}
+
+Let $L$ be the number of analyzers and let $e_i(x)\in\{0,1\}$ denote the binary decision produced by analyzer $i$ for a code artifact $x$,
+where $1$ indicates the detection of a vulnerability and $0$ otherwise.
+Given the behavior vector
+
+\begin{equation}
+E(x) = (e_1(x), e_2(x), \ldots, e_L(x)),
+\end{equation}
+
+Naive Bayes estimates the posterior probability of each class $c$ using Bayes' theorem.
+Assuming conditional independence among analyzer outputs given the class label,
+the posterior probability can be expressed as
+
+\begin{equation}
+P(c \mid E)
+=
+\frac{P(c)\prod_{i=1}^{L}P(e_i \mid c)}
+{\sum_{c'} P(c')\prod_{i=1}^{L}P(e_i \mid c')}.
+\end{equation}
+
+The prior probability $P(c)$ and the conditional probabilities $P(e_i \mid c)$ are estimated from the training data.
+During inference, a new artifact is assigned to the class maximizing the posterior probability:
+
+\begin{equation}
+\hat{c}
+=
+\arg\max_c P(c \mid E).
+\end{equation}
+
+(Per CWE analysis): As an illustrative example, consider three static analyzers, namely CodeQL, Semgrep, and Joern.
+Suppose a code fragment produces the behavior vector $E=(1,0,0)$, indicating that CodeQL reports a vulnerability while Semgrep and Joern do not.
+Assume that the training data provide the following estimates:
+
+\begin{equation}
+P(\text{vulnerable}) = 0.40,
+\qquad
+P(\text{safe}) = 0.60,
+\end{equation}
+
+\begin{equation}
+P(e_1=1 \mid \text{vulnerable}) = 0.80,
+\qquad
+P(e_1=1 \mid \text{safe}) = 0.15,
+\end{equation}
+
+\begin{equation}
+P(e_2=0 \mid \text{vulnerable}) = 0.30,
+\qquad
+P(e_2=0 \mid \text{safe}) = 0.85,
+\end{equation}
+
+\begin{equation}
+P(e_3=0 \mid \text{vulnerable}) = 0.40,
+\qquad
+P(e_3=0 \mid \text{safe}) = 0.90.
+\end{equation}
+
+The corresponding likelihoods are therefore
+
+\begin{equation}
+P(E \mid \text{vulnerable})
+=
+0.80 \times 0.30 \times 0.40
+=
+0.096,
+\end{equation}
+
+\begin{equation}
+P(E \mid \text{safe})
+=
+0.15 \times 0.85 \times 0.90
+=
+0.11475.
+\end{equation}
+
+Applying Bayes' theorem yields
+
+\begin{equation}
+P(\text{vulnerable} \mid E)
+=
+\frac{0.40 \times 0.096}
+{0.40 \times 0.096 + 0.60 \times 0.11475}
+\approx
+0.36.
+\end{equation}
+
+Consequently, the artifact is classified as safe, since the posterior probability of the vulnerable class is lower than that of the safe class.
+Unlike majority-voting schemes, Naive Bayes incorporates both the prior prevalence of vulnerabilities and the historical reliability of individual analyzers.
+However, \textbf{its effectiveness relies on the conditional independence assumption among analyzer outputs}.
+In vulnerability detection scenarios, static analyzers often exhibit correlated behaviors because they inspect similar code patterns and security properties.
+As a result, \textbf{the independence assumption may not always hold}, potentially limiting the ability of Naive Bayes to fully exploit recurring combinations of agreements and disagreements among analyzers.
+
+\end{document}

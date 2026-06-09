@@ -34,9 +34,9 @@ Three levels are supported (`analysis/canonical.py`, `CweCanonicalizer`):
 
 | level         | rule                                              | example mappings |
 |---------------|---------------------------------------------------|------------------|
-| `pillar`      | top weakness of the view                          | 79,89,78 → 707 ; 120,125 → 664 |
-| `subcategory` | node directly under the pillar                    | 79,89,78 → 74  ; 120,125 → 118 |
-| `class`       | nearest ancestor with `Abstraction=Class`         | 79 → 74, 89 → 943, 78 → 77 ; 120,125 → 119 |
+| `pillar`      | top weakness of the view | 79,89,78 → 707 ; 120,125 → 664 |
+| `subcategory` | project-defined node directly under the pillar; not a MITRE `Abstraction` value | 79,89,78 → 74 ; 120,125 → 118 |
+| `class`       | nearest ancestor with `Abstraction=Class`; if a branch has no Class node, fall back to the node directly under the pillar, preserving `Pillar -> Base` branches | 79 → 74, 89 → 943, 78 → 77 ; 120,125 → 119 ; 1024 → 1024 |
 
 **`class` is the recommended default.** Measured on the Python grid, `pillar` and
 `subcategory` over-merge the highest-traffic family (all injection collapses into CWE-74),
@@ -62,13 +62,19 @@ exact labels, metric lookup, prediction schema):
 
 * `weighted.py` — reliability-weighted voting (4 fire/silence metric pairs);
 * `traditional.py` — K-of-N baseline (all tools and supported-only);
-* `dst.py` — Dempster-Shafer (Dempster's rule and PCR6) on the binary frame {V,S};
+* `dst.py` — Dempster-Shafer (Dempster, PCR6, Yager) on the binary frame {V,S}, expanded over the same 4 fire/silence metric pairs;
 * `bayes.py` — naive Bayes over per-tool log-likelihood ratios;
+* `bks.py` — empirical behavior-knowledge-space lookup over tool fire patterns;
 * `logistic.py` — per-family logistic regression on the fire indicators.
 
-Every strategy emits the same per-(row, family) schema, so they all feed
-`predictions.evaluate_predictions` (metrics per `(strategy, family)`) and
-`detection_from_predictions` (per-row vuln/safe collapse + `cwe_attribution_acc`).
+Noisy-OR is intentionally not part of the supported strategy set. Every scored fusion
+strategy is materialised at the discrete thresholds `τ ∈ {0.1, …, 0.9}` as explicit
+strategy names (for example `naive_bayes_tau_0_7`), so per-family, detection, plots and
+CSV reports all operate on the same strategy identifiers. Baseline single-tool, OR, and
+traditional K-of-N rows remain unswept discrete references. Every strategy emits the same
+per-(row, family) schema, so they all feed `predictions.evaluate_predictions` (metrics per
+`(strategy, family)`) and `detection_from_predictions` (per-row vuln/safe collapse +
+`cwe_attribution_acc`).
 
 ## 5. Two-stage aggregation (`analysis/aggregation.py`)
 
@@ -111,8 +117,11 @@ main.py  fusion --level …    thin CLI entry point
 
 Outputs per `data/results/<language>/<level>/`: `config.json` (run config + restriction
 stats), `canonical_map.csv`, `folds.csv`, `calibration_reliability.csv`,
-`fusion_predictions`/`_metrics_per_family`/`_metrics_overall`/`_detection_overall.csv`,
-and `plots/<metric>.{svg,png}`.
+`fusion_metrics_per_family.csv`, `fusion_metrics_overall.csv`,
+`fusion_detection_overall.csv`, `fusion_tau_sweep.csv`, `fusion_operating_points.csv`, and
+`plots/<metric>.{svg,png}`. The `fusion_tau_sweep.csv` and operating-point reports are
+derived from the explicit `*_tau_*` strategy rows rather than from a hidden post-hoc
+thresholding pass.
 
 ## 9. Key decisions
 

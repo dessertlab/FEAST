@@ -1,9 +1,10 @@
 """Dempster-Shafer fusion on the binary frame Theta = {V, S}.
 
-Each supported tool's basic belief assignment comes from its calibration metrics: on a
-fire ``m({V}) = ppv`` (rest is ignorance ``m(Theta)``); on silence ``m({S}) = npv``.
-Masses are combined with Dempster's rule or PCR6, and the decision uses the pignistic
-probability ``BetP(V) = m({V}) + m(Theta)/2`` as the score.
+Each supported tool's basic belief assignment comes from a chosen pair of calibration
+metrics: on a fire ``m({V}) = fire_metric`` (rest is ignorance ``m(Theta)``); on silence
+``m({S}) = silence_metric``. The experiment expands the same four metric pairs used by
+weighted voting. Masses are combined with Dempster's rule, PCR6, or Yager's rule, and the
+decision uses the pignistic probability ``BetP(V) = m({V}) + m(Theta)/2`` as the score.
 """
 
 from __future__ import annotations
@@ -86,28 +87,30 @@ def dst_vote_predictions(
     families: Sequence[str],
     labels: dict[tuple[int, str], bool],
     fire_index: tuple[dict[tuple[int, str], set[str]], list[set[str]]],
+    fire_metric: str = "ppv",
+    silence_metric: str = "npv",
     tau: float = 0.5,
 ) -> pd.DataFrame:
     combiners = {"pcr6": _combine_pcr6, "dempster": _combine_dempster, "yager": _combine_yager}
     if rule not in combiners:
         raise ValueError(f"unknown DST rule: {rule!r}")
     combine = combiners[rule]
-    strategy = f"dst_{rule}"
+    strategy = f"dst_{rule}_fire_{fire_metric}_silence_{silence_metric}"
     fire_sets, _ = fire_index
     sample_ids = sample_ids_of(df)
     n = len(df)
 
     rows: list[dict] = []
     for family in families:
-        sup, ppv, npv = [], [], []
+        sup, fire_weights, silence_weights = [], [], []
         for tool in tools:
             row = lookup.get((tool, family))
             if not is_supported(row):
                 continue
-            p, q = metric_value(row, "ppv"), metric_value(row, "npv")
+            p, q = metric_value(row, fire_metric), metric_value(row, silence_metric)
             sup.append(tool)
-            ppv.append(0.0 if p is None else p)
-            npv.append(0.0 if q is None else q)
+            fire_weights.append(0.0 if p is None else p)
+            silence_weights.append(0.0 if q is None else q)
         k = len(sup)
         abstained = len(tools) - k
         if k == 0:
@@ -116,8 +119,8 @@ def dst_vote_predictions(
             continue
 
         fire = np.array([[family in fire_sets[(ri, tool)] for tool in sup] for ri in range(n)], dtype=bool)
-        v = np.where(fire, np.asarray(ppv), 0.0)
-        s = np.where(fire, 0.0, np.asarray(npv))
+        v = np.where(fire, np.asarray(fire_weights), 0.0)
+        s = np.where(fire, 0.0, np.asarray(silence_weights))
         t = 1.0 - v - s
         mV, mS = combine(v, s, t)
         betp = mV + (1.0 - mV - mS) / 2.0

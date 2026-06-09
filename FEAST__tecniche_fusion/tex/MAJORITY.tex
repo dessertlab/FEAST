@@ -1,0 +1,23 @@
+Il passo successivo e' richiedere accordo fra piu' strumenti. Nel voto $K$-out-of-$N$ la famiglia $f$ viene predetta vulnerabile solo se almeno $K$ analizzatori la segnalano:
+\begin{equation}
+\hat{y}_f(x)=
+\mathbb{1}\left[\sum_{i=1}^{L} e_i^f(x) \geq K\right].
+\end{equation}
+Quando $K=\lceil L/2\rceil$ si parla di majority voting; nel caso a tre strumenti con $K=2$ otteniamo, per $E=(1,0,0)$,
+\begin{equation}
+\sum_i e_i=1 < 2,
+\end{equation}
+quindi la decisione diventa safe. Rispetto all'OR, questa regola riduce la sensibilita' ai falsi positivi isolati, ma introduce un problema speculare: una singola segnalazione molto affidabile viene trattata come una segnalazione debole. In analisi di vulnerabilita', dove alcune CWE possono essere coperte bene da un solo tool specializzato, il voto non pesato rischia di perdere proprio i casi piu' informativi.
+
+\begin{lstlisting}[caption={Implementazione K-out-of-N in analysis/fusion/traditional.py}]
+from analysis.fusion.traditional import traditional_vote_predictions
+
+preds = traditional_vote_predictions(
+    validation_df,
+    tools,
+    families,
+    threshold=2,
+    labels=labels,
+    fire_index=fire_index,
+)
+\end{lstlisting}

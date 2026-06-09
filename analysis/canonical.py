@@ -7,11 +7,13 @@ climbing the deterministic **primary** ChildOf path (``View_ID=1000``,
 ``Ordinal=Primary``). Three levels are supported:
 
 * ``pillar``       — the top weakness of the view (≈10 buckets, very coarse).
-* ``subcategory``  — the node directly under the pillar (coarse).
+* ``subcategory``  — project-defined: the node directly under the pillar (coarse);
+                     this is not a MITRE ``Abstraction`` value.
 * ``class``        — the nearest ancestor (incl. self) tagged ``Abstraction=Class``;
-                     finest of the three. This is the recommended default: it keeps
-                     SQLi/XSS/command-injection distinct while merging e.g. buffer
-                     over-read/over-write into CWE-119.
+                     when a branch has no Class node, fall back to the node directly
+                     under the pillar (often a MITRE Base weakness). This is the
+                     recommended default: it keeps SQLi/XSS/command-injection distinct
+                     while merging e.g. buffer over-read/over-write into CWE-119.
 
 Once tool outputs and ground truth are mapped to families, downstream matching is a
 plain *exact* set membership — the permissive vertical matching is gone; the only
@@ -78,11 +80,13 @@ class CweCanonicalizer:
         elif self.level == "subcategory":
             # Node directly under the pillar; if the CWE *is* the pillar, it maps to itself.
             target = path[-2] if len(path) >= 2 else pillar
-        else:  # "class": nearest Class ancestor (incl. self), else fall back to the pillar.
-            target = next(
-                (node for node in path if self.nav.abstraction(node) == "Class"),
-                pillar,
-            )
+        else:  # "class": nearest Class ancestor; if none exists, preserve the branch.
+            target = next((node for node in path if self.nav.abstraction(node) == "Class"), None)
+            if target is None:
+                # Some CWE-1000 branches are Pillar -> Base with no intermediate Class.
+                # Falling back to the pillar would erase the branch, so use the direct
+                # child under the pillar (the same coarse level as ``subcategory``).
+                target = path[-2] if len(path) >= 2 else pillar
         return f"CWE-{target}"
 
     def families(self, cwes: Iterable) -> list[str]:

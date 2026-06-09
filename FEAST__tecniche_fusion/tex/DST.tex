@@ -1,0 +1,50 @@
+Dempster--Shafer Theory mantiene l'idea di pesare le fonti, ma aggiunge una terza categoria: ignoranza esplicita. Il frame binario e'
+\begin{equation}
+\ThetaSet=\{\Vuln,\Safe\}.
+\end{equation}
+Una massa di credenza assegna peso non solo ai singoletti $\{\Vuln\}$ e $\{\Safe\}$, ma anche all'insieme completo $\ThetaSet$:
+\begin{equation}
+m:2^{\ThetaSet}\rightarrow[0,1],
+\qquad
+m(\emptyset)=0,
+\qquad
+\sum_{A\subseteq\ThetaSet}m(A)=1.
+\end{equation}
+Nel codice della repository, se uno strumento segnala, assegniamo $m_i(\{\Vuln\})$ al peso di fire scelto, ad esempio \texttt{ppv}; il resto va a ignoranza. Se lo strumento resta silente, assegniamo $m_i(\{\Safe\})$ al peso di silence scelto, ad esempio \texttt{npv}; anche qui il resto va a ignoranza. Per l'esempio condiviso:
+\begin{equation}
+m_1(\{\Vuln\})=0.78,\quad m_1(\ThetaSet)=0.22,
+\end{equation}
+\begin{equation}
+m_2(\{\Safe\})=0.81,\quad m_2(\ThetaSet)=0.19,
+\qquad
+m_3(\{\Safe\})=0.77,\quad m_3(\ThetaSet)=0.23.
+\end{equation}
+
+Le regole DST differiscono soprattutto nel trattamento del conflitto. Dempster normalizza via la massa conflittuale, Yager la trasferisce a $\ThetaSet$, PCR6 la redistribuisce proporzionalmente fra le ipotesi direttamente coinvolte. Dopo la combinazione, la repository usa la probabilita' pignistica
+\begin{equation}
+\mathrm{BetP}(\Vuln)=m(\{\Vuln\})+\frac{m(\ThetaSet)}{2}
+\end{equation}
+come score continuo. Sul nostro esempio, usando \texttt{ppv} per i fire e \texttt{npv} per i silenzi, si ottiene:
+\begin{equation}
+\mathrm{BetP}_{\mathrm{Dempster}}(\Vuln)\approx 0.15,\qquad
+\mathrm{BetP}_{\mathrm{Yager}}(\Vuln)\approx 0.41,\qquad
+\mathrm{BetP}_{\mathrm{PCR6}}(\Vuln)\approx 0.33.
+\end{equation}
+Tutte e tre le varianti classificano $x^\star$ come safe, ma per ragioni diverse: Dempster amplifica il consenso residuo verso $\Safe$, Yager resta piu' cauto accumulando ignoranza, PCR6 redistribuisce il conflitto in modo meno aggressivo. DST e' utile quando si vuole rendere visibile l'incertezza invece di schiacciarla subito in una probabilita'; richiede pero' di scegliere una regola di combinazione e resta sensibile alla dipendenza fra fonti.
+
+\begin{lstlisting}[caption={Implementazione DST in analysis/fusion/dst.py}]
+from analysis.fusion.dst import dst_vote_predictions
+
+preds = dst_vote_predictions(
+    validation_df,
+    lookup,
+    rule="pcr6",          # "dempster", "pcr6" oppure "yager"
+    tools=tools,
+    families=families,
+    labels=labels,
+    fire_index=fire_index,
+    fire_metric="ppv",
+    silence_metric="npv",
+    tau=0.5,
+)
+\end{lstlisting}

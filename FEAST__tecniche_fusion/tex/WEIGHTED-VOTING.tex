@@ -1,0 +1,42 @@
+Il voto pesato conserva la struttura semplice del conteggio, ma sostituisce l'idea ``uno strumento, un voto'' con pesi stimati in calibrazione. Nella variante usata come esempio, una segnalazione contribuisce allo score vulnerabile con la precisione positiva dello strumento, mentre un silenzio contribuisce allo score safe con il valore predittivo negativo:
+\begin{equation}
+V(x)=\sum_{i:e_i=1}\mathrm{ppv}_i,
+\qquad
+S(x)=\sum_{i:e_i=0}\mathrm{npv}_i,
+\end{equation}
+\begin{equation}
+s_{\mathrm{WV}}(x)=\frac{V(x)}{V(x)+S(x)}.
+\end{equation}
+Nel nostro esempio,
+\begin{equation}
+V(x^\star)=0.78,
+\qquad
+S(x^\star)=0.81+0.77=1.58,
+\end{equation}
+e quindi
+\begin{equation}
+s_{\mathrm{WV}}(x^\star)=\frac{0.78}{0.78+1.58}\approx 0.33.
+\end{equation}
+La decisione e' safe. Il vantaggio rispetto al majority voting e' che la qualita' storica dei tool entra esplicitamente nel modello; il limite e' che segnalazioni e silenzi restano sommati in modo lineare. Il metodo non distingue, ad esempio, fra un pattern raro ma molto predittivo e una combinazione di evidenze indipendenti che produce lo stesso totale.
+
+\begin{lstlisting}[caption={Implementazione weighted voting in analysis/fusion/weighted.py}]
+from analysis.fusion.weighted import (
+    WeightedVotingStrategy,
+    weighted_vote_predictions,
+)
+
+strategy = WeightedVotingStrategy(
+    fire_metric="ppv",
+    silence_metric="npv",
+)
+
+preds = weighted_vote_predictions(
+    validation_df,
+    lookup,
+    strategy,
+    tools,
+    families,
+    labels,
+    fire_index,
+)
+\end{lstlisting}

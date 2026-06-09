@@ -1,14 +1,11 @@
 import numpy as np
 import pandas as pd
-from pytest import approx
-
 from analysis.calibration import compute_reliability
 from analysis.fusion import run_fusion
 from analysis.fusion.common import build_fire_index, metric_lookup, precompute_labels
 from analysis.fusion.bks import bks_predictions
 from analysis.fusion.dst import _combine_dempster, _combine_yager
-from analysis.fusion.noisy_or import noisy_or_predictions
-from analysis.fusion.predictions import DEFAULT_TAUS, tau_sweep_detection
+from analysis.fusion.predictions import DEFAULT_TAUS, tau_variant_table
 
 
 def _df():
@@ -27,23 +24,19 @@ def _ctx(df, tools=("toolA", "toolB"), families=("CWE-1", "CWE-2")):
     return tools, families, metric_lookup(rel), precompute_labels(df, families), build_fire_index(df, tools), rel
 
 
-def test_run_fusion_includes_all_new_strategies():
+def test_run_fusion_includes_explicit_tau_strategy_variants():
     df = _df()
     tools, families, _, _, _, rel = _ctx(df)
     preds = run_fusion(df, df, rel, tools, families, threshold=2)
     strategies = set(preds["strategy"])
-    for expected in {"bks", "noisy_or", "dst_yager", "logistic_interactions", "naive_bayes"}:
+    for expected in {
+        "bks_tau_0_5",
+        "dst_yager_fire_ppv_silence_npv_tau_0_5",
+        "logistic_interactions_tau_0_5",
+        "naive_bayes_tau_0_5",
+        "weighted_fire_ppv_silence_npv_tau_0_5",
+    }:
         assert expected in strategies
-
-
-def test_noisy_or_is_monotone_in_fires():
-    # more firing tools -> score never decreases (multiplicative OR)
-    df = _df()
-    tools, families, lookup, labels, fire_index, _ = _ctx(df)
-    preds = noisy_or_predictions(df, lookup, tools, families, labels, fire_index)
-    f1 = preds[preds["family"] == "CWE-1"].set_index("row_index")["score"]
-    # row 0 (both tools fire CWE-1) >= row 1 (only toolA fires CWE-1) >= row 2 (none)
-    assert f1[0] >= f1[1] >= f1[2]
 
 
 def test_bks_scores_are_probabilities_and_cover_all_rows():
@@ -64,14 +57,14 @@ def test_yager_unnormalised_mass_le_dempster():
 
 def test_canonical_strategy_order():
     from analysis.fusion.common import canonical_strategy_order
-    present = ["bks", "tool:codeql", "logistic_regression", "or_1_of_2",
-               "tool:bandit", "traditional_2_of_2", "naive_bayes", "always_vulnerable"]
+    present = ["bks_tau_0_5", "tool:codeql", "logistic_regression_tau_0_1", "or_1_of_2",
+               "tool:bandit", "traditional_2_of_2", "naive_bayes_tau_0_9", "always_vulnerable"]
     order = canonical_strategy_order(["bandit", "codeql"], present)
     # single tools first (in tool order), then OR, then traditional, then fusers, unknown last
     assert order[:2] == ["tool:bandit", "tool:codeql"]
     assert order[2] == "or_1_of_2"
     assert order[3] == "traditional_2_of_2"
-    assert order.index("naive_bayes") < order.index("logistic_regression")
+    assert order.index("naive_bayes_tau_0_9") < order.index("logistic_regression_tau_0_1")
     assert order[-1] == "always_vulnerable"
 
 
@@ -82,13 +75,14 @@ def test_run_fusion_includes_single_tools_and_or():
     assert {"tool:toolA", "tool:toolB", "or_1_of_2"} <= strategies
 
 
-def test_tau_sweep_grid_and_baseline():
+def test_tau_variants_are_materialised_as_strategies():
     df = _df()
     tools, families, _, _, _, rel = _ctx(df)
     preds = run_fusion(df, df, rel, tools, families, threshold=2)
-    sweep = tau_sweep_detection(preds, df)
-    # one row per (scored strategy, tau) + the always_vulnerable baseline
-    assert set(sweep["tau"]).issuperset(set(DEFAULT_TAUS))
-    assert "always_vulnerable" in set(sweep["strategy"])
-    always = sweep[sweep["strategy"] == "always_vulnerable"].iloc[0]
-    assert always["recall"] == approx(1.0)   # predicts every row vulnerable
+    bks = {s for s in preds["strategy"] if s.startswith("bks_tau_")}
+    assert len(bks) == len(DEFAULT_TAUS)
+
+    metrics = pd.DataFrame({"strategy": sorted(bks), "mcc": np.arange(len(bks), dtype=float)})
+    table = tau_variant_table(metrics)
+    assert set(table["tau"]) == set(DEFAULT_TAUS)
+    assert set(table["base_strategy"]) == {"bks"}

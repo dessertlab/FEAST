@@ -33,7 +33,7 @@ from analysis.fusion import (
     order_by_strategy,
     run_fusion,
 )
-from analysis.fusion.predictions import tau_sweep_detection
+from analysis.fusion.predictions import tau_variant_table
 from analysis.reporting import save_config, save_csv, save_strategy_plots
 
 console = Console()
@@ -165,7 +165,7 @@ def run_language_level(
         return {"language": language, "level": level, **restriction}
 
     # ── cross-validation ──────────────────────────────────────────────────────
-    reliability_frames, per_family_frames, detection_frames, tau_frames = [], [], [], []
+    reliability_frames, per_family_frames, detection_frames = [], [], []
     for fold in sorted(folds["fold"].unique()):
         console.print(f"  fold {fold}: calibrating + fusing …")
         cal_df, val_df = split_train_validation(cdf, folds, validation_fold=fold)
@@ -184,11 +184,6 @@ def run_language_level(
         detection.insert(0, "fold", fold)
         detection_frames.append(detection)
 
-        # operating-point sweep: each strategy's detection metrics over a discrete τ grid
-        tau_sweep = tau_sweep_detection(predictions, val_df)
-        tau_sweep.insert(0, "fold", fold)
-        tau_frames.append(tau_sweep)
-
     per_family_per_fold = pd.concat(per_family_frames, ignore_index=True)
     per_family_mean, overall = aggregate_fusion_metrics(per_family_per_fold)
     detection_overall = (
@@ -198,17 +193,14 @@ def run_language_level(
         .mean(numeric_only=True)
     )
 
-    # tau-sweep: mean over folds per (strategy, τ); operating point = best-MCC τ per strategy
-    tau_overall = (
-        pd.concat(tau_frames, ignore_index=True)
-        .drop(columns="fold")
-        .groupby(["strategy", "tau"], as_index=False)
-        .mean(numeric_only=True)
-    )
+    # The tau sweep is already materialised as explicit strategy names. These two
+    # compatibility reports parse those names back into (base_strategy, tau).
+    tau_overall = tau_variant_table(detection_overall)
     operating_points = (
-        tau_overall.sort_values("mcc", ascending=False)
-        .groupby("strategy", as_index=False)
+        tau_overall.sort_values("mcc", ascending=False, na_position="last")
+        .groupby("base_strategy", as_index=False)
         .first()
+        if not tau_overall.empty else tau_overall
     )
 
     # Fixed strategy order everywhere: single tools → OR → traditional → fusers.
@@ -233,7 +225,8 @@ def run_language_level(
     save_strategy_plots(overall, results_dir / "plots")
 
     _print_overall(language, level, overall, detection_overall)
-    _print_operating_points(language, level, operating_points)
+    if not operating_points.empty:
+        _print_operating_points(language, level, operating_points)
     return {"language": language, "level": level, "results_dir": str(results_dir), **restriction}
 
 
@@ -303,13 +296,13 @@ def _print_overall(language: str, level: str, overall: pd.DataFrame, detection: 
 def _print_operating_points(language: str, level: str, operating_points: pd.DataFrame) -> None:
     """Best-MCC operating point per strategy from the discrete τ sweep (honest metric:
     MCC, since F2 on a positive-majority detection set rewards trivial always-vulnerable)."""
-    table = Table(title=f"{language} · {level} · detection @ best-MCC τ (τ sweep)")
+    table = Table(title=f"{language} · {level} · detection @ best-MCC explicit τ")
     table.add_column("strategy", style="cyan", no_wrap=True)
     for col in ("tau", "precision", "recall", "f2", "mcc", "roc_auc"):
         table.add_column(col, justify="right")
     for _i, r in operating_points.iterrows():
         table.add_row(
-            str(r["strategy"]),
+            str(r["base_strategy"] if "base_strategy" in r else r["strategy"]),
             f"{r['tau']:.1f}",
             *["—" if pd.isna(r.get(m)) else f"{r[m]:.3f}" for m in ("precision", "recall", "f2", "mcc", "roc_auc")],
         )

@@ -1,0 +1,38 @@
+BKS chiude il percorso passando dal modello parametrico alla tabella empirica dei comportamenti. Con $L$ strumenti binari esistono al massimo $2^L$ pattern possibili. Per ciascun pattern $E$ e per ciascuna famiglia $f$, BKS conta quante volte quel pattern e' stato associato a una classe nel set di calibrazione:
+\begin{equation}
+N(E,\Vuln),\qquad N(E,\Safe).
+\end{equation}
+La stima non smussata sarebbe
+\begin{equation}
+P(\Vuln\mid E)=
+\frac{N(E,\Vuln)}{N(E,\Vuln)+N(E,\Safe)}.
+\end{equation}
+La repository usa pero' un m-estimate, che evita stime estreme quando un pattern e' raro:
+\begin{equation}
+s_{\mathrm{BKS}}(x)=
+\frac{N(E,\Vuln)+m\pi_f}{N(E,\Vuln)+N(E,\Safe)+m},
+\end{equation}
+dove $\pi_f$ e' il prior vulnerabile della famiglia e $m$ controlla quanto lo score viene riportato verso il prior.
+
+Nel nostro esempio, il pattern $(1,0,0)$ compare $50$ volte: $42$ vulnerabili e $8$ safe. Con $\pi_f=0.40$ e $m=2$,
+\begin{equation}
+s_{\mathrm{BKS}}(x^\star)=
+\frac{42+2\cdot 0.40}{50+2}
+\approx 0.82.
+\end{equation}
+La decisione e' vulnerabile. BKS cattura direttamente il fatto che ``CodeQL segnala mentre Semgrep e Joern tacciono'' puo' essere un pattern storicamente forte, anche se majority voting, voto pesato e Naive Bayes lo classificano safe. Questa e' la sua forza principale: non impone additivita' ne' indipendenza condizionata. Il prezzo e' la sparsita': al crescere degli strumenti, molti dei $2^L$ pattern saranno rari o assenti, quindi servono calibrazione sufficiente e smoothing per evitare overfitting.
+
+\begin{lstlisting}[caption={Implementazione BKS in analysis/fusion/bks.py}]
+from analysis.fusion.bks import bks_predictions
+
+preds = bks_predictions(
+    calibration_df,
+    validation_df,
+    tools,
+    families,
+    labels,
+    fire_index,
+    tau=0.5,
+    m=2.0,
+)
+\end{lstlisting}

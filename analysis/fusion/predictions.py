@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from analysis.dataset import as_list
+from analysis.fusion.common import DEFAULT_TAUS, split_tau_strategy, tau_suffix
 
 DETECTION_STRATEGY_COL = "strategy"
 
@@ -142,7 +143,19 @@ def detection_from_predictions(predictions: pd.DataFrame, df: pd.DataFrame) -> p
     return pd.DataFrame(rows)
 
 
-DEFAULT_TAUS = tuple(round(0.1 * i, 1) for i in range(1, 10))   # 0.1 … 0.9
+def expand_tau_variants(predictions: pd.DataFrame, taus=DEFAULT_TAUS) -> pd.DataFrame:
+    """Materialise each scored strategy as one explicit strategy per threshold.
+
+    ``foo`` becomes ``foo_tau_0_1`` ... ``foo_tau_0_9``. The continuous score is preserved
+    for ROC/PR metrics; only the boolean decision and strategy name change.
+    """
+    frames = []
+    for tau in taus:
+        frame = predictions.copy()
+        frame["strategy"] = frame["strategy"].map(lambda name: f"{name}_{tau_suffix(tau)}")
+        frame["prediction"] = frame["score"].astype(float) >= float(tau)
+        frames.append(frame)
+    return pd.concat(frames, ignore_index=True) if frames else predictions.iloc[0:0].copy()
 
 
 def tau_sweep_detection(predictions: pd.DataFrame, df: pd.DataFrame, taus=DEFAULT_TAUS) -> pd.DataFrame:
@@ -167,6 +180,17 @@ def tau_sweep_detection(predictions: pd.DataFrame, df: pd.DataFrame, taus=DEFAUL
     m = binary_metrics(label.tolist(), [True] * n, [1.0] * n)
     rows.append({"strategy": "always_vulnerable", "tau": 0.0, **{k: m[k] for k in keep}})
     return pd.DataFrame(rows)
+
+
+def tau_variant_table(metrics: pd.DataFrame) -> pd.DataFrame:
+    """Add ``base_strategy`` and ``tau`` columns for explicit ``*_tau_*`` variants."""
+    if metrics.empty or "strategy" not in metrics.columns:
+        return metrics.copy()
+    out = metrics.copy()
+    parts = out["strategy"].map(split_tau_strategy)
+    out.insert(1, "base_strategy", parts.map(lambda item: item[0]))
+    out.insert(2, "tau", parts.map(lambda item: item[1]))
+    return out[out["tau"].notna()].reset_index(drop=True)
 
 
 def detection_metrics(detection: pd.DataFrame) -> pd.DataFrame:

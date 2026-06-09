@@ -14,7 +14,7 @@ from typing import Sequence
 
 import pandas as pd
 
-from analysis.fusion.common import evidence_row, is_supported, metric_value, sample_ids_of
+from analysis.fusion.common import DEFAULT_METRIC_PAIRS, evidence_row, is_supported, metric_value, sample_ids_of
 
 
 @dataclass(frozen=True)
@@ -28,10 +28,7 @@ class WeightedVotingStrategy:
 
 
 DEFAULT_WEIGHTED_STRATEGIES = (
-    WeightedVotingStrategy("ppv", "npv"),
-    WeightedVotingStrategy("ppv", "sensitivity"),
-    WeightedVotingStrategy("specificity", "npv"),
-    WeightedVotingStrategy("specificity", "sensitivity"),
+    *(WeightedVotingStrategy(fire, silence) for fire, silence in DEFAULT_METRIC_PAIRS),
 )
 
 

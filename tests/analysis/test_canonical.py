@@ -42,6 +42,14 @@ def test_class_level_keeps_injection_distinct_but_merges_buffer(navigator):
     assert canon.family("120") == canon.family("125") == "CWE-119"
 
 
+def test_class_level_falls_back_to_pillar_child_when_no_class_exists(navigator):
+    canon = CweCanonicalizer(navigator, level="class")
+    # CWE-1024 is a Base weakness whose primary path is 1024 -> 697, with no Class node.
+    assert navigator.abstraction("1024") == "Base"
+    assert navigator.primary_path("1024") == ("1024", "697")
+    assert canon.family("1024") == "CWE-1024"
+
+
 def test_unmapped_tokens_return_none(navigator):
     canon = CweCanonicalizer(navigator, level="class")
     assert canon.family("CWE-0") is None

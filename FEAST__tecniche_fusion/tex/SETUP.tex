@@ -1,0 +1,51 @@
+Consideriamo il problema di fusione a livello di famiglia CWE. Per ogni artefatto di codice $x$ e per una famiglia fissata $f$, ciascun analizzatore statico $T_i$ produce una decisione binaria
+\begin{equation}
+e_i^f(x) \in \{0,1\},
+\end{equation}
+dove $e_i^f(x)=1$ indica che $T_i$ segnala la famiglia $f$ su $x$, mentre $e_i^f(x)=0$ indica silenzio rispetto a quella famiglia. Con $L$ strumenti, l'output congiunto e' il vettore di comportamento
+\begin{equation}
+E_f(x)=\bigl(e_1^f(x),e_2^f(x),\ldots,e_L^f(x)\bigr).
+\end{equation}
+La variabile di verita' e' $y_f(x)\in\{0,1\}$: $y_f(x)=1$ significa che l'artefatto e' realmente vulnerabile per $f$. Nel seguito useremo anche le classi $\Vuln$ e $\Safe$, rispettivamente ``vulnerabile'' e ``safe''. Ogni tecnica produce uno score $s_f(x)\in[0,1]$ interpretabile come evidenza a favore di $\Vuln$; la decisione finale e'
+\begin{equation}
+\hat{y}_f(x)=
+\begin{cases}
+1, & s_f(x)\geq \tau,\\
+0, & s_f(x)<\tau,
+\end{cases}
+\end{equation}
+con soglia di default $\tau=0.5$.
+
+La calibrazione e' stimata per coppia strumento--famiglia. Dal punto di vista della repository, questa informazione e' prodotta da \texttt{analysis/calibration.py}: per ogni $(T_i,f)$ si calcolano la matrice di confusione one-vs-rest e metriche come precisione positiva (\texttt{ppv}), valore predittivo negativo (\texttt{npv}), tasso di falsi positivi (\texttt{fpr}), tasso di falsi negativi (\texttt{fnr}), sensibilita' e specificita'. Una coppia $(T_i,f)$ e' considerata supportata se lo strumento ha almeno una segnalazione per quella famiglia nel set di calibrazione; le strategie pesate usano solo strumenti supportati.
+
+Useremo lo stesso esempio numerico in tutte le sezioni. Fissiamo una famiglia $f$ e tre analizzatori: CodeQL ($T_1$), Semgrep ($T_2$) e Joern ($T_3$). Sul frammento $x^\star$ osserviamo
+\begin{equation}
+E_f(x^\star)=(1,0,0),
+\end{equation}
+cioe' CodeQL segnala la CWE, mentre Semgrep e Joern restano silenti. Nel set di calibrazione assumiamo una prevalenza
+\begin{equation}
+P(\Vuln)=0.40,\qquad P(\Safe)=0.60.
+\end{equation}
+Le affidabilita' usate nell'esempio sono riportate in Tabella~\ref{tab:shared_example}.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccccccc}
+\toprule
+Strumento & $e_i$ & $P(1\mid\Vuln)$ & $P(1\mid\Safe)$ & $P(0\mid\Vuln)$ & $P(0\mid\Safe)$ & \texttt{ppv} & \texttt{npv}\\
+\midrule
+CodeQL  & 1 & 0.80 & 0.15 & 0.20 & 0.85 & 0.78 & 0.86\\
+Semgrep & 0 & 0.70 & 0.15 & 0.30 & 0.85 & 0.76 & 0.81\\
+Joern   & 0 & 0.60 & 0.10 & 0.40 & 0.90 & 0.80 & 0.77\\
+\bottomrule
+\end{tabular}
+\caption{Esempio condiviso per una famiglia CWE. Lo stesso vettore $E=(1,0,0)$ viene valutato da tutte le strategie.}
+\label{tab:shared_example}
+\end{table}
+
+Per le tecniche che apprendono dai pattern completi useremo anche due informazioni aggiuntive. Primo, per Logistic Regression assumiamo coefficienti illustrativi
+\begin{equation}
+w_0=-1.2,\qquad w_1=2.1,\qquad w_2=0.8,\qquad w_3=0.5.
+\end{equation}
+Secondo, per BKS assumiamo che il pattern $E=(1,0,0)$ sia comparso $50$ volte nel set di calibrazione, con $42$ esempi vulnerabili e $8$ safe. Questi numeri non descrivono una specifica run sperimentale: servono a rendere confrontabile, sezione per sezione, l'effetto delle diverse ipotesi di fusione.

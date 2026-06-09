@@ -1,0 +1,18 @@
+La strategia piu' semplice e' l'unione delle segnalazioni: l'artefatto e' marcato come vulnerabile se almeno uno strumento segnala la famiglia $f$. In forma compatta,
+\begin{equation}
+s_{\mathrm{OR}}(x)=
+\mathbb{1}\left[\sum_{i=1}^{L} e_i^f(x) \geq 1\right].
+\end{equation}
+Nel nostro esempio $\sum_i e_i=1$, quindi $s_{\mathrm{OR}}(x^\star)=1$ e la decisione e' vulnerabile. Questo comportamento e' utile come riferimento ad alta recall: se una CWE e' vista da un solo strumento, l'OR la conserva. Il costo e' altrettanto chiaro: ogni falso positivo di qualsiasi analizzatore entra direttamente nel risultato finale. Per questo motivo e' preferibile chiamarla ``unione'' o ``1-out-of-N'' invece di ``upper bound'': non e' un limite superiore della qualita', ma un limite superiore della copertura delle segnalazioni.
+
+\begin{lstlisting}[caption={Implementazione OR in analysis/fusion/baselines.py}]
+from analysis.fusion.baselines import or_predictions
+
+preds = or_predictions(
+    validation_df,
+    tools,
+    families,
+    labels,
+    fire_index,
+)
+\end{lstlisting}

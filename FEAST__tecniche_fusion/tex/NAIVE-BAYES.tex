@@ -1,0 +1,43 @@
+Naive Bayes introduce una lettura probabilistica del vettore $E$. Per ogni classe $c\in\{\Vuln,\Safe\}$ si stima
+\begin{equation}
+P(c\mid E)=
+\frac{P(c)\prod_{i=1}^{L}P(e_i\mid c)}
+{\sum_{c'\in\{\Vuln,\Safe\}}P(c')\prod_{i=1}^{L}P(e_i\mid c')}.
+\end{equation}
+La differenza rispetto al voto pesato e' che il prior della famiglia e il comportamento di ciascun tool sotto entrambe le classi sono combinati in modo probabilistico. Nel codice, la stessa idea viene implementata in log-odds per evitare instabilita' numerica:
+\begin{equation}
+\log\frac{P(\Vuln\mid E)}{P(\Safe\mid E)}
+=
+\log\frac{P(\Vuln)}{P(\Safe)}
++
+\sum_i \log\frac{P(e_i\mid\Vuln)}{P(e_i\mid\Safe)}.
+\end{equation}
+
+Per $E=(1,0,0)$ otteniamo
+\begin{equation}
+P(E\mid\Vuln)=0.80\cdot 0.30\cdot 0.40=0.096,
+\end{equation}
+\begin{equation}
+P(E\mid\Safe)=0.15\cdot 0.85\cdot 0.90=0.11475.
+\end{equation}
+Applicando il prior,
+\begin{equation}
+P(\Vuln\mid E)=
+\frac{0.40\cdot 0.096}{0.40\cdot 0.096 + 0.60\cdot 0.11475}
+\approx 0.36.
+\end{equation}
+La decisione resta safe. Il punto di forza e' che Naive Bayes distingue esplicitamente fra una segnalazione informativa e un silenzio informativo; il punto debole e' l'ipotesi di indipendenza condizionata. Gli analizzatori statici spesso condividono pattern sintattici, regole e astrazioni, quindi due output possono essere correlati anche dopo aver fissato la classe vera.
+
+\begin{lstlisting}[caption={Implementazione Naive Bayes in analysis/fusion/bayes.py}]
+from analysis.fusion.bayes import naive_bayes_predictions
+
+preds = naive_bayes_predictions(
+    validation_df,
+    lookup,
+    tools,
+    families,
+    labels,
+    fire_index,
+    tau=0.5,
+)
+\end{lstlisting}

@@ -11,6 +11,7 @@ from ``analysis.calibration`` and are looked up by ``(tool, family)``.
 
 from __future__ import annotations
 
+import re
 from typing import Iterable, Sequence
 
 import pandas as pd
@@ -24,6 +25,31 @@ PREDICTION_COLUMNS = [
     "tools_supported", "tools_fired", "tools_abstained", "label",
 ]
 
+DEFAULT_TAUS = tuple(round(0.1 * i, 1) for i in range(1, 10))
+
+DEFAULT_METRIC_PAIRS = (
+    ("ppv", "npv"),
+    ("ppv", "sensitivity"),
+    ("specificity", "npv"),
+    ("specificity", "sensitivity"),
+)
+
+
+def tau_suffix(tau: float) -> str:
+    return f"tau_{tau:.1f}".replace(".", "_")
+
+
+_TAU_RE = re.compile(r"_tau_(\d+)_(\d+)$")
+
+
+def split_tau_strategy(strategy: str) -> tuple[str, float | None]:
+    match = _TAU_RE.search(strategy)
+    if not match:
+        return strategy, None
+    base = strategy[:match.start()]
+    return base, float(f"{match.group(1)}.{match.group(2)}")
+
+
 # Canonical display order of the real fusers (after the single-tool / OR / traditional
 # baselines), used so every table and CSV lists strategies in the same sequence.
 FUSER_ORDER = (
@@ -31,8 +57,12 @@ FUSER_ORDER = (
     "weighted_fire_ppv_silence_sensitivity",
     "weighted_fire_specificity_silence_npv",
     "weighted_fire_specificity_silence_sensitivity",
-    "dst_dempster", "dst_pcr6", "dst_yager",
-    "naive_bayes", "noisy_or", "bks",
+    *(
+        f"dst_{rule}_fire_{fire}_silence_{silence}"
+        for rule in ("dempster", "pcr6", "yager")
+        for fire, silence in DEFAULT_METRIC_PAIRS
+    ),
+    "naive_bayes", "bks",
     "logistic_regression", "logistic_interactions",
 )
 
@@ -47,7 +77,13 @@ def canonical_strategy_order(tools: Sequence[str], present: Iterable[str]) -> li
     order: list[str] = [f"tool:{t}" for t in tools]
     order += [s for s in present if s.startswith("or_1_of_")]
     order += sorted(s for s in present if s.startswith("traditional"))
-    order += list(FUSER_ORDER)
+    fuser_rank = {name: i for i, name in enumerate(FUSER_ORDER)}
+    fuser_present = []
+    for strategy in present:
+        base, tau = split_tau_strategy(strategy)
+        if base in fuser_rank:
+            fuser_present.append((fuser_rank[base], 1.0 if tau is None else tau, strategy))
+    order += [strategy for _rank, _tau, strategy in sorted(fuser_present)]
     seen: set[str] = set()
     out: list[str] = []
     for s in order:

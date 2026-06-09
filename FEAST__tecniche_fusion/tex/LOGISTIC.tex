@@ -1,0 +1,60 @@
+Logistic Regression usa il vettore $E$ direttamente come rappresentazione dell'artefatto e apprende dai dati il peso relativo degli analizzatori. Lo score e'
+\begin{equation}
+s_{\mathrm{LR}}(x)=P(\Vuln\mid E)=\sigma\left(w_0+\sum_{i=1}^{L}w_i e_i\right),
+\end{equation}
+dove
+\begin{equation}
+\sigma(z)=\frac{1}{1+e^{-z}}.
+\end{equation}
+I pesi $w_i$ sono stimati sullo split di calibrazione minimizzando la binary cross-entropy. Nel codice viene usato \texttt{class\_weight="balanced"} per compensare lo sbilanciamento tipico delle classi; se per una famiglia la calibrazione contiene una sola classe, il modello cade su una previsione costante pari al rate osservato.
+
+Con i coefficienti definiti nel setup e $E=(1,0,0)$,
+\begin{equation}
+z=-1.2+2.1(1)+0.8(0)+0.5(0)=0.9,
+\end{equation}
+\begin{equation}
+s_{\mathrm{LR}}(x^\star)=\sigma(0.9)\approx 0.71.
+\end{equation}
+La decisione diventa vulnerabile. Questo e' il primo modello della sequenza che riesce a valorizzare una singola segnalazione forte contro due silenzi, perche' il peso di CodeQL e' appreso discriminativamente dal target. Il limite e' la forma additiva: due strumenti che segnalano insieme contribuiscono come somma dei loro effetti individuali, anche quando la loro co-occorrenza ha un significato specifico.
+
+\begin{lstlisting}[caption={Implementazione Logistic Regression in analysis/fusion/logistic.py}]
+from analysis.fusion.logistic import logistic_regression_predictions
+
+preds = logistic_regression_predictions(
+    calibration_df,
+    validation_df,
+    tools,
+    families,
+    labels,
+    fire_index,
+    tau=0.5,
+    seed=0,
+)
+\end{lstlisting}
+
+\subsection{Logistic Regression con interazioni}
+
+Per modellare dipendenze selettive fra strumenti, la stessa regressione puo' essere estesa con termini di interazione:
+\begin{equation}
+s_{\mathrm{LR+I}}(x)=
+\sigma\left(
+w_0+\sum_i w_i e_i+\sum_{i<j}w_{ij}e_i e_j
+\right).
+\end{equation}
+Il prodotto $e_i e_j$ vale $1$ solo quando entrambi gli strumenti segnalano la stessa famiglia. Nel nostro esempio $E=(1,0,0)$ nessuna coppia e' attiva, quindi lo score resta $0.71$. Se pero' osservassimo $E=(1,1,0)$, un termine positivo $w_{12}$ potrebbe rappresentare il fatto che l'accordo CodeQL--Semgrep e' piu' informativo della somma dei due singoli output. Questa variante e' piu' espressiva della Logistic Regression standard, ma aumenta rapidamente il numero di feature: con $L$ strumenti aggiunge $L(L-1)/2$ termini solo per le interazioni a coppie.
+
+\begin{lstlisting}[caption={Implementazione Logistic Regression con interazioni in analysis/fusion/logistic.py}]
+from analysis.fusion.logistic import logistic_regression_predictions
+
+preds = logistic_regression_predictions(
+    calibration_df,
+    validation_df,
+    tools,
+    families,
+    labels,
+    fire_index,
+    tau=0.5,
+    seed=0,
+    interactions=True,
+)
+\end{lstlisting}
