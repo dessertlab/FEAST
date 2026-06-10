@@ -2,7 +2,7 @@
 
 Each supported tool's basic belief assignment comes from a chosen pair of calibration
 metrics: on a fire ``m({V}) = fire_metric`` (rest is ignorance ``m(Theta)``); on silence
-``m({S}) = silence_metric``. The experiment expands the same four metric pairs used by
+``m({S}) = silence_metric``. The experiment expands the same metric pairs used by
 weighted voting. Masses are combined with Dempster's rule, PCR6, or Yager's rule, and the
 decision uses the pignistic probability ``BetP(V) = m({V}) + m(Theta)/2`` as the score.
 """

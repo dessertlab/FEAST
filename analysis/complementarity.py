@@ -276,7 +276,7 @@ def run_diagnostics(
     enriched_dir: str | Path = "data/enriched",
     results_root: str | Path = "data/results",
 ) -> dict:
-    """Run every complementarity lens for one (language, level) and write diagnostics/."""
+    """Run every complementarity lens for one language at the canonical level."""
     import json
 
     from rich.console import Console

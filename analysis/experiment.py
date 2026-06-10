@@ -1,4 +1,4 @@
-"""End-to-end fusion experiment for one language at one canonical level.
+"""End-to-end fusion experiment for one language at the canonical CWE level.
 
 Pipeline (everything operates on canonical families with exact matching):
 
@@ -34,7 +34,7 @@ from analysis.fusion import (
     run_fusion,
 )
 from analysis.fusion.predictions import tau_variant_table
-from analysis.reporting import save_config, save_csv, save_strategy_plots
+from analysis.reporting import save_best_variant_plots, save_config, save_csv, save_strategy_plots
 
 console = Console()
 
@@ -223,6 +223,7 @@ def run_language_level(
     save_csv(tau_overall, results_dir / "fusion_tau_sweep.csv")
     save_csv(operating_points, results_dir / "fusion_operating_points.csv")
     save_strategy_plots(overall, results_dir / "plots")
+    save_best_variant_plots(overall, results_dir / "plots" / "best_variants")
 
     _print_overall(language, level, overall, detection_overall)
     if not operating_points.empty:
@@ -232,22 +233,23 @@ def run_language_level(
 
 def run(
     language: str = "all",
-    level: str = "all",
+    level: str = "pillar_child",
     *,
     languages: list[str] | None = None,
     **kwargs,
 ) -> list[dict]:
-    """Run one or all languages × one or all canonical levels."""
-    from analysis.canonical import LEVELS
-    levels = list(LEVELS) if level == "all" else [level]
+    """Run one or all languages at the single supported canonical level."""
+    from analysis.canonical import CANONICAL_LEVEL
+
+    if level in {"all", None}:
+        level = CANONICAL_LEVEL
     langs = languages if languages is not None else ([language] if language != "all" else ["c_cpp", "java", "python"])
     summaries = []
     for lang in langs:
-        for lvl in levels:
-            try:
-                summaries.append(run_language_level(lang, lvl, **kwargs))
-            except FileNotFoundError as exc:
-                console.print(f"[yellow]{lang}/{lvl}: {exc}[/yellow]")
+        try:
+            summaries.append(run_language_level(lang, level, **kwargs))
+        except FileNotFoundError as exc:
+            console.print(f"[yellow]{lang}/{level}: {exc}[/yellow]")
     return summaries
 
 

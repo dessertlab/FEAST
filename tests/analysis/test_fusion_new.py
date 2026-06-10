@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from analysis.calibration import compute_reliability
 from analysis.fusion import run_fusion
-from analysis.fusion.common import build_fire_index, metric_lookup, precompute_labels
+from analysis.fusion.common import DEFAULT_METRIC_PAIRS, build_fire_index, metric_lookup, precompute_labels
 from analysis.fusion.bks import bks_predictions
 from analysis.fusion.dst import _combine_dempster, _combine_yager
 from analysis.fusion.predictions import DEFAULT_TAUS, tau_variant_table
@@ -37,6 +37,27 @@ def test_run_fusion_includes_explicit_tau_strategy_variants():
         "weighted_fire_ppv_silence_npv_tau_0_5",
     }:
         assert expected in strategies
+
+
+def test_metric_pair_expansion_excludes_hybrids_and_uses_requested_pairs():
+    assert DEFAULT_METRIC_PAIRS == (
+        ("ppv", "npv"),
+        ("specificity", "sensitivity"),
+        ("fpr", "fnr"),
+    )
+
+    df = _df()
+    tools, families, _, _, _, rel = _ctx(df)
+    strategies = set(run_fusion(df, df, rel, tools, families, threshold=2)["strategy"])
+
+    assert "weighted_fire_fpr_silence_fnr_tau_0_5" in strategies
+    assert "dst_yager_fire_specificity_silence_sensitivity_tau_0_5" in strategies
+    hybrid_a = f"weighted_fire_{'ppv'}_silence_{'sensitivity'}_tau_0_5"
+    hybrid_b = f"weighted_fire_{'specificity'}_silence_{'npv'}_tau_0_5"
+    old_supported_names = ("_".join(("of", "supported")), "_".join(("out", "of", "supported")))
+    assert hybrid_a not in strategies
+    assert hybrid_b not in strategies
+    assert not any(any(old in strategy for old in old_supported_names) for strategy in strategies)
 
 
 def test_bks_scores_are_probabilities_and_cover_all_rows():

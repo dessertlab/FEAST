@@ -23,28 +23,26 @@ is plain set membership, identical in calibration and fusion.
 
 ## 2. Family definition (primary-path rule)
 
-CWE-1000 is a DAG: ~22% of the CWEs in the dataset have ≥2 ChildOf parents. To get a
+CWE-1000 is a DAG: some weaknesses have multiple `ChildOf` parents. To get a
 deterministic partition we follow only the parent marked `Ordinal="Primary"` within
-`View_ID="1000"` (`CWENavigator.primary_parent` / `primary_path`). This disambiguates
-**100%** of the multi-parent cases (538/545 dataset weaknesses have exactly one
-primary-1000 parent; 7 are roots; 0 ambiguous) and discards misleading cross-view edges
-(e.g. CWE-120's `CWE-20` parent, which belongs to view 700, not 1000).
+`View_ID="1000"` (`CWENavigator.primary_parent` / `primary_path`). This discards
+misleading cross-view edges (for example CWE-120's CWE-20 parent in view 700).
 
-Three levels are supported (`analysis/canonical.py`, `CweCanonicalizer`):
+The analysis now uses exactly one canonical family level: **the direct children of
+CWE-1000 pillars**. For each raw CWE, follow its primary path up to a Pillar and map it
+to the node immediately below that Pillar:
 
-| level         | rule                                              | example mappings |
-|---------------|---------------------------------------------------|------------------|
-| `pillar`      | top weakness of the view | 79,89,78 → 707 ; 120,125 → 664 |
-| `subcategory` | project-defined node directly under the pillar; not a MITRE `Abstraction` value | 79,89,78 → 74 ; 120,125 → 118 |
-| `class`       | nearest ancestor with `Abstraction=Class`; if a branch has no Class node, fall back to the node directly under the pillar, preserving `Pillar -> Base` branches | 79 → 74, 89 → 943, 78 → 77 ; 120,125 → 119 ; 1024 → 1024 |
+| primary path | family |
+|--------------|--------|
+| 79 -> 74 -> 707 | CWE-74 |
+| 89 -> 943 -> 74 -> 707 | CWE-74 |
+| 120 -> 787 -> 119 -> 118 -> 664 | CWE-118 |
+| 1024 -> 697 | CWE-1024 |
 
-**`class` is the recommended default.** Measured on the Python grid, `pillar` and
-`subcategory` over-merge the highest-traffic family (all injection collapses into CWE-74),
-destroying the SQLi/XSS/command-injection distinctions where tools specialise. `class`
-keeps those distinct *and* merges trivial leaf splits (buffer over-read/over-write → 119),
-because MITRE itself draws a `Class` boundary at SQLi (943) but not between buffer
-variants. The level is an explicit experiment axis (`--level pillar|subcategory|class|all`)
-so the over-merging effect can be reported as an ablation.
+Pillars themselves are not analysis families: the target family set is only the
+first-order children below pillars. The previous `pillar`, `subcategory`, and `class`
+experiment levels were removed; this single `pillar_child` rule is now the only
+canonicalisation strategy.
 
 ## 3. Matching, confusion, calibration
 
@@ -60,9 +58,9 @@ is positive for `f` iff `f` is in the GT family set — **exact, symmetric** mem
 One package, one strategy per module, sharing the plumbing in `common.py` (fire index,
 exact labels, metric lookup, prediction schema):
 
-* `weighted.py` — reliability-weighted voting (4 fire/silence metric pairs);
-* `traditional.py` — K-of-N baseline (all tools and supported-only);
-* `dst.py` — Dempster-Shafer (Dempster, PCR6, Yager) on the binary frame {V,S}, expanded over the same 4 fire/silence metric pairs;
+* `weighted.py` — reliability-weighted voting (3 fire/silence metric pairs: ppv/npv, specificity/sensitivity, fpr/fnr);
+* `traditional.py` — K-of-N baseline over all tools;
+* `dst.py` — Dempster-Shafer (Dempster, PCR6, Yager) on the binary frame {V,S}, expanded over the same 3 fire/silence metric pairs;
 * `bayes.py` — naive Bayes over per-tool log-likelihood ratios;
 * `bks.py` — empirical behavior-knowledge-space lookup over tool fire patterns;
 * `logistic.py` — per-family logistic regression on the fire indicators.
@@ -88,10 +86,8 @@ per-(row, family) schema, so they all feed `predictions.evaluate_predictions` (m
 
 A family is analysed iff it is **supported** (fired by ≥1 tool) **and** has **≥K
 ground-truth occurrences** (`K = --min-cwe-count`, default `= --n-splits`; the necessary
-condition for a per-fold-stable confusion matrix). The header prints how many families are
-kept vs present, why the rest dropped, and the fraction of GT occurrences retained — e.g.
-Python/`class`: *35 kept / 112 present (74 unsupported, 3 below K); 71.2% of GT
-occurrences covered*.
+condition for a per-fold-stable confusion matrix). The header prints the kept/present
+family counts, unsupported families, below-K families, and retained GT-occurrence coverage.
 
 ## 7. Folding
 
@@ -105,21 +101,22 @@ code).
 
 ```
 ingestion/cwe_navigator.py   primary_parent / primary_path / abstraction (View_ID+Ordinal)
-analysis/canonical.py        CWE -> family (pillar/subcategory/class)
+analysis/canonical.py        CWE -> direct child below CWE-1000 pillar
 analysis/folds.py            stratified k-fold + rare-family pruning
 analysis/calibration.py      exact per-(tool, family) confusion + reliability
 analysis/fusion/             strategies + predictions + detection
 analysis/aggregation.py      two-stage aggregation
 analysis/reporting.py        CSV + SVG/PNG writers
-analysis/experiment.py       CV orchestration per (language, level)
-main.py  fusion --level …    thin CLI entry point
+analysis/experiment.py       CV orchestration per language at the single canonical level
+main.py  fusion              thin CLI entry point
 ```
 
-Outputs per `data/results/<language>/<level>/`: `config.json` (run config + restriction
+Outputs per `data/results/<language>/pillar_child/`: `config.json` (run config + restriction
 stats), `canonical_map.csv`, `folds.csv`, `calibration_reliability.csv`,
 `fusion_metrics_per_family.csv`, `fusion_metrics_overall.csv`,
-`fusion_detection_overall.csv`, `fusion_tau_sweep.csv`, `fusion_operating_points.csv`, and
-`plots/<metric>.{svg,png}`. The `fusion_tau_sweep.csv` and operating-point reports are
+`fusion_detection_overall.csv`, `fusion_tau_sweep.csv`, `fusion_operating_points.csv`,
+`plots/<metric>.{svg,png}`, and `plots/best_variants/<metric>.{svg,png}`. The
+`fusion_tau_sweep.csv` and operating-point reports are
 derived from the explicit `*_tau_*` strategy rows rather than from a hidden post-hoc
 thresholding pass.
 
@@ -127,7 +124,7 @@ thresholding pass.
 
 * Matching is **exact on families**; the old vertical-closure matcher is removed.
 * Support weight = `positive_support` (GT occurrences), summed across folds.
-* All three levels run by default; `class` is the recommended headline.
+* The only canonical level is `pillar_child`: direct children of CWE-1000 pillars.
 * Restriction = supported ∧ ≥K GT occurrences.
 * Superseded modules (`metrics`, `split`, `report`, `visualization`, monolithic `fusion`)
   were removed rather than deprecated; the strategy math was preserved and relocated.

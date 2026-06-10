@@ -1328,17 +1328,16 @@ def _fusion_lang_slug(language: str) -> str:
 def cmd_fusion(args) -> None:
     """Stage 5: canonical-family calibration + fusion-strategy comparison.
 
-    Thin wrapper over analysis.experiment.run, which canonicalises CWEs to a CWE-1000
-    level (pillar/subcategory/class), calibrates per-(tool, family) reliability with exact
-    matching, runs every fusion strategy under cross-validation, and writes per-level
-    results to data/results/<language>/<level>/.
+    Thin wrapper over analysis.experiment.run, which canonicalises CWEs to the direct
+    children of CWE-1000 pillars, calibrates per-(tool, family) reliability with exact
+    matching, runs every fusion strategy under cross-validation, and writes results to
+    data/results/<language>/pillar_child/.
     """
     from analysis.experiment import run
 
     languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
     exclude = [tok for tok in (args.exclude or '').split(',') if tok.strip()]
     run(
-        level=args.level,
         languages=languages,
         n_splits=args.n_splits,
         min_cwe_count=args.min_cwe_count,
@@ -1356,25 +1355,23 @@ def cmd_diagnose(args) -> None:
     Measures whether multi-tool fusion can beat the best single tool on these data:
     oracle/coverage headroom, error diversity, per-(tool, family) reliability heatmap, and
     cross-validated marginal contribution + conditional value. Writes to
-    data/results/<language>/<level>/diagnostics/.
+    data/results/<language>/pillar_child/diagnostics/.
     """
-    from analysis.canonical import LEVELS
+    from analysis.canonical import CANONICAL_LEVEL
     from analysis.complementarity import run_diagnostics
 
     languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
-    levels = list(LEVELS) if args.level == 'all' else [args.level]
     exclude = [tok for tok in (args.exclude or '').split(',') if tok.strip()]
     for language in languages:
-        for level in levels:
-            try:
-                run_diagnostics(
-                    language, level,
-                    n_splits=args.n_splits, min_cwe_count=args.min_cwe_count,
-                    exclude=exclude, seed=args.seed,
-                    enriched_dir=ENRICHED_DIR, results_root=RESULTS_DIR,
-                )
-            except (FileNotFoundError, ValueError) as exc:
-                console.print(f'[yellow]{language}/{level}: {exc}[/yellow]')
+        try:
+            run_diagnostics(
+                language, CANONICAL_LEVEL,
+                n_splits=args.n_splits, min_cwe_count=args.min_cwe_count,
+                exclude=exclude, seed=args.seed,
+                enriched_dir=ENRICHED_DIR, results_root=RESULTS_DIR,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            console.print(f'[yellow]{language}/{CANONICAL_LEVEL}: {exc}[/yellow]')
 
 
 # ── argument parser ────────────────────────────────────────────────────────────
@@ -1490,10 +1487,6 @@ examples:
         help='Language to fuse: c, java, python, all  [default: all]',
     )
     fus.add_argument(
-        '--level', default='all', choices=['pillar', 'subcategory', 'class', 'all'],
-        help='CWE-1000 canonicalisation level (or all three)  [default: all]',
-    )
-    fus.add_argument(
         '--exclude', default=None, metavar='TOOL1,TOOL2,...',
         help='Comma-separated tools to exclude from the ensemble (their families leave the grid too)',
     )
@@ -1522,8 +1515,6 @@ examples:
     )
     dia.add_argument('--lang', default='all', metavar='LANG',
                      help='Language: c, java, python, all  [default: all]')
-    dia.add_argument('--level', default='class', choices=['pillar', 'subcategory', 'class', 'all'],
-                     help='CWE-1000 canonicalisation level (or all three)  [default: class]')
     dia.add_argument('--exclude', default=None, metavar='TOOL1,TOOL2,...',
                      help='Comma-separated tools to exclude')
     dia.add_argument('--n-splits', type=int, default=5, metavar='N', dest='n_splits',

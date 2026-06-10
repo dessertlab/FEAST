@@ -69,10 +69,8 @@ def run_fusion(
         # References (shown first): each single tool, then their OR (1-of-N).
         *(single_tool_predictions(validation_df, t, families, labels, fire_index) for t in tools),
         or_predictions(validation_df, tools, families, labels, fire_index),
-        # Baselines: traditional K-of-N (all tools, and supported-only).
+        # Baseline: traditional K-of-N over all tools.
         traditional_vote_predictions(validation_df, tools, families, threshold, labels, fire_index),
-        traditional_vote_predictions(validation_df, tools, families, threshold, labels, fire_index,
-                                     lookup=lookup, supported_only=True),
     ]
     scored_fuser_frames = [
         # Reliability-weighted voting (one frame per metric pair).

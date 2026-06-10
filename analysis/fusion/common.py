@@ -29,9 +29,8 @@ DEFAULT_TAUS = tuple(round(0.1 * i, 1) for i in range(1, 10))
 
 DEFAULT_METRIC_PAIRS = (
     ("ppv", "npv"),
-    ("ppv", "sensitivity"),
-    ("specificity", "npv"),
     ("specificity", "sensitivity"),
+    ("fpr", "fnr"),
 )
 
 
@@ -53,10 +52,10 @@ def split_tau_strategy(strategy: str) -> tuple[str, float | None]:
 # Canonical display order of the real fusers (after the single-tool / OR / traditional
 # baselines), used so every table and CSV lists strategies in the same sequence.
 FUSER_ORDER = (
-    "weighted_fire_ppv_silence_npv",
-    "weighted_fire_ppv_silence_sensitivity",
-    "weighted_fire_specificity_silence_npv",
-    "weighted_fire_specificity_silence_sensitivity",
+    *(
+        f"weighted_fire_{fire}_silence_{silence}"
+        for fire, silence in DEFAULT_METRIC_PAIRS
+    ),
     *(
         f"dst_{rule}_fire_{fire}_silence_{silence}"
         for rule in ("dempster", "pcr6", "yager")
