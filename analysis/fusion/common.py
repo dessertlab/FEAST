@@ -32,6 +32,42 @@ DEFAULT_METRIC_PAIRS = (
     ("specificity", "sensitivity"),
     ("fpr", "fnr"),
 )
+CALIBRATION_METRICS = tuple(dict.fromkeys(metric for pair in DEFAULT_METRIC_PAIRS for metric in pair))
+
+
+def metric_pairs_for_calibration(metrics: Iterable[str] | None = None) -> tuple[tuple[str, str], ...]:
+    """Supported fire/silence calibration pairs allowed by a metric list.
+
+    The CLI accepts a comma-separated metric set. We keep only the predefined
+    fire/silence pairs whose two metrics are both present, so excluded calibration
+    combinations are never materialised as strategies.
+    """
+    if metrics is None:
+        return DEFAULT_METRIC_PAIRS
+    allowed = {str(metric).strip().lower() for metric in metrics if str(metric).strip()}
+    unknown = allowed - set(CALIBRATION_METRICS)
+    if unknown:
+        raise ValueError(f"unknown calibration metric(s): {sorted(unknown)}")
+    pairs = tuple(pair for pair in DEFAULT_METRIC_PAIRS if set(pair) <= allowed)
+    if not pairs:
+        raise ValueError(
+            "calibration metrics do not contain any supported pair; "
+            f"supported pairs are {DEFAULT_METRIC_PAIRS}"
+        )
+    return pairs
+
+
+def taus_in_range(tau_min: float = 0.1, tau_max: float = 0.9) -> tuple[float, ...]:
+    """Default tau grid clipped to the inclusive [tau_min, tau_max] range."""
+    lo, hi = float(tau_min), float(tau_max)
+    if lo > hi:
+        raise ValueError(f"taumin must be <= taumax, got {lo} > {hi}")
+    if lo < 0.0 or hi > 1.0:
+        raise ValueError("tau bounds must be within [0.0, 1.0]")
+    taus = tuple(tau for tau in DEFAULT_TAUS if lo - 1e-9 <= tau <= hi + 1e-9)
+    if not taus:
+        raise ValueError(f"tau range [{lo}, {hi}] does not include any default tau in {DEFAULT_TAUS}")
+    return taus
 
 
 def tau_suffix(tau: float) -> str:

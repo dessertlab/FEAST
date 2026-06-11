@@ -1336,12 +1336,16 @@ def cmd_fusion(args) -> None:
     from analysis.experiment import run
 
     languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
-    exclude = [tok for tok in (args.exclude or '').split(',') if tok.strip()]
+    exclude = [tok.strip() for tok in (args.exclude or '').split(',') if tok.strip()]
+    calibration = [tok.strip() for tok in (args.calibration or '').split(',') if tok.strip()] or None
     run(
         languages=languages,
         n_splits=args.n_splits,
         min_cwe_count=args.min_cwe_count,
         threshold=args.threshold,
+        calibration_metrics=calibration,
+        tau_min=args.tau_min,
+        tau_max=args.tau_max,
         exclude=exclude,
         seed=args.seed,
         enriched_dir=ENRICHED_DIR,
@@ -1502,6 +1506,18 @@ examples:
     fus.add_argument(
         '--threshold', type=int, default=2, metavar='K',
         help='K for the traditional K-of-N voting baseline  [default: 2]',
+    )
+    fus.add_argument(
+        '--calibration', default=None, metavar='M1,M2,...',
+        help='Comma-separated calibration metrics to allow: ppv,npv,sensitivity,specificity,fpr,fnr  [default: all supported pairs]',
+    )
+    fus.add_argument(
+        '--taumin', type=float, default=0.1, metavar='T', dest='tau_min',
+        help='Minimum tau from the default 0.1..0.9 grid, inclusive  [default: 0.1]',
+    )
+    fus.add_argument(
+        '--taumax', type=float, default=0.9, metavar='T', dest='tau_max',
+        help='Maximum tau from the default 0.1..0.9 grid, inclusive  [default: 0.9]',
     )
     fus.add_argument(
         '--seed', type=int, default=42, metavar='S',

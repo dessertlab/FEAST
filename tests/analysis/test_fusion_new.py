@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from analysis.calibration import compute_reliability
 from analysis.fusion import run_fusion
-from analysis.fusion.common import DEFAULT_METRIC_PAIRS, build_fire_index, metric_lookup, precompute_labels
+from analysis.fusion.common import DEFAULT_METRIC_PAIRS, build_fire_index, metric_lookup, metric_pairs_for_calibration, precompute_labels, taus_in_range
 from analysis.fusion.bks import bks_predictions
 from analysis.fusion.dst import _combine_dempster, _combine_yager
 from analysis.fusion.predictions import DEFAULT_TAUS, tau_variant_table
@@ -58,6 +58,29 @@ def test_metric_pair_expansion_excludes_hybrids_and_uses_requested_pairs():
     assert hybrid_a not in strategies
     assert hybrid_b not in strategies
     assert not any(any(old in strategy for old in old_supported_names) for strategy in strategies)
+
+
+def test_configured_calibration_metrics_and_tau_range_prune_strategy_variants():
+    assert metric_pairs_for_calibration(["sensitivity", "specificity"]) == (("specificity", "sensitivity"),)
+    assert taus_in_range(0.1, 0.8) == tuple(round(0.1 * i, 1) for i in range(1, 9))
+
+    df = _df()
+    tools, families, _, _, _, rel = _ctx(df)
+    preds = run_fusion(
+        df, df, rel, tools, families, threshold=2,
+        calibration_metrics=["sensitivity", "specificity"],
+        taus=taus_in_range(0.1, 0.8),
+    )
+    strategies = set(preds["strategy"])
+
+    assert "weighted_fire_specificity_silence_sensitivity_tau_0_8" in strategies
+    assert "dst_yager_fire_specificity_silence_sensitivity_tau_0_8" in strategies
+    assert "bks_tau_0_8" in strategies
+    assert "logistic_regression_tau_0_8" in strategies
+    assert not any("_tau_0_9" in strategy for strategy in strategies)
+    assert not any("weighted_fire_ppv_silence_npv" in strategy for strategy in strategies)
+    assert not any("dst_yager_fire_ppv_silence_npv" in strategy for strategy in strategies)
+    assert not any("weighted_fire_fpr_silence_fnr" in strategy for strategy in strategies)
 
 
 def test_bks_scores_are_probabilities_and_cover_all_rows():

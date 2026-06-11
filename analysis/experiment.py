@@ -34,6 +34,7 @@ from analysis.fusion import (
     order_by_strategy,
     run_fusion,
 )
+from analysis.fusion.common import metric_pairs_for_calibration, taus_in_range
 from analysis.fusion.predictions import tau_variant_table
 from analysis.mean_difference_ci import save_mean_difference_ci_report
 from analysis.reporting import save_best_variant_plots, save_config, save_csv, save_strategy_plots
@@ -143,6 +144,9 @@ def run_language_level(
     n_splits: int = 5,
     min_cwe_count: int | None = None,
     threshold: int = 2,
+    calibration_metrics: list[str] | None = None,
+    tau_min: float = 0.1,
+    tau_max: float = 0.9,
     exclude: list[str] | None = None,
     seed: int = 42,
     enriched_dir: str | Path = "data/enriched",
@@ -166,6 +170,9 @@ def run_language_level(
         console.print(f"[red]{language}/{level}: no families survive restriction. Skipping.[/red]")
         return {"language": language, "level": level, **restriction}
 
+    metric_pairs = metric_pairs_for_calibration(calibration_metrics)
+    taus = taus_in_range(tau_min, tau_max)
+
     # ── cross-validation ──────────────────────────────────────────────────────
     reliability_frames, per_family_frames, detection_frames = [], [], []
     for fold in sorted(folds["fold"].unique()):
@@ -177,7 +184,8 @@ def run_language_level(
         reliability_frames.append(reliability)
 
         predictions = run_fusion(cal_df, val_df, reliability.drop(columns="fold"),
-                                 tools, families, threshold=threshold, seed=seed)
+                                 tools, families, threshold=threshold, seed=seed,
+                                 calibration_metrics=calibration_metrics, taus=taus)
         per_family = evaluate_predictions(predictions, group_cols=("strategy", "family"))
         per_family.insert(0, "fold", fold)
         per_family_frames.append(per_family)
@@ -215,6 +223,9 @@ def run_language_level(
     # ── write outputs ─────────────────────────────────────────────────────────
     save_config({"language": language, "level": level, "tools": tools, "n_splits": n_splits,
                  "threshold": threshold, "seed": seed, "excluded": exclude or [],
+                 "calibration_metrics": calibration_metrics,
+                 "calibration_metric_pairs": [list(pair) for pair in metric_pairs],
+                 "tau_min": tau_min, "tau_max": tau_max, "taus": list(taus),
                  "restriction": restriction}, results_dir / "config.json")
     save_csv(canonical_map, results_dir / "canonical_map.csv")
     save_csv(folds, results_dir / "folds.csv")

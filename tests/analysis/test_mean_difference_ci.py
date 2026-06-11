@@ -26,7 +26,7 @@ def _per_family():
     ])
 
 
-def test_mean_difference_ci_classifies_paired_intervals_against_both_baselines():
+def test_mean_difference_ci_classifies_paired_intervals_against_traditional_baseline():
     intervals = mean_difference_ci(_per_family(), metric="f1", tools=["a", "b", "c", "d"])
 
     by_pair = {
@@ -34,12 +34,10 @@ def test_mean_difference_ci_classifies_paired_intervals_against_both_baselines()
         for row in intervals.to_dict("records")
     }
 
+    assert set(intervals["baseline"]) == {"traditional"}
     assert by_pair[("traditional", "weighted_fire_ppv_silence_npv_tau_0_5")] == STATUS_IMPROVEMENT
     assert by_pair[("traditional", "naive_bayes_tau_0_5")] == STATUS_INCONCLUSIVE
     assert by_pair[("traditional", "bks_tau_0_5")] == STATUS_DEGRADATION
-    assert by_pair[("or", "weighted_fire_ppv_silence_npv_tau_0_5")] == STATUS_IMPROVEMENT
-    assert by_pair[("or", "naive_bayes_tau_0_5")] == STATUS_INCONCLUSIVE
-    assert by_pair[("or", "bks_tau_0_5")] == STATUS_DEGRADATION
 
 
 def test_mean_difference_ci_report_writes_csv_svg_and_png(tmp_path):
@@ -51,4 +49,6 @@ def test_mean_difference_ci_report_writes_csv_svg_and_png(tmp_path):
     assert (tmp_path / "mean_difference_ci_f1.csv").is_file()
     assert (tmp_path / "mean_difference_ci_f1.svg").is_file()
     assert (tmp_path / "mean_difference_ci_f1.png").is_file()
-    assert "Incremento statistico" in (tmp_path / "mean_difference_ci_f1.svg").read_text(encoding="utf-8")
+    svg = (tmp_path / "mean_difference_ci_f1.svg").read_text(encoding="utf-8")
+    assert "traditional_2_of_4" in svg
+    assert "or_1_of_4" not in svg

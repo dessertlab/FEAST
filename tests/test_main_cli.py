@@ -838,6 +838,14 @@ def test_build_parser_supports_aliases_and_data_dir(tmp_path):
     assert args.lang == "py"
     assert args.data_dir == tmp_path
 
+    fuse_args = parser.parse_args([
+        "fusion", "--calibration", "sensitivity,specificity",
+        "--taumin", "0.1", "--taumax", "0.8",
+    ])
+    assert fuse_args.calibration == "sensitivity,specificity"
+    assert fuse_args.tau_min == 0.1
+    assert fuse_args.tau_max == 0.8
+
     assert parser.parse_args(["dl"]).command == "dl"
     assert parser.parse_args(["m"]).command == "m"
     assert parser.parse_args(["ls"]).command == "ls"

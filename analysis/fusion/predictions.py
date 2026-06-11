@@ -149,6 +149,7 @@ def expand_tau_variants(predictions: pd.DataFrame, taus=DEFAULT_TAUS) -> pd.Data
     ``foo`` becomes ``foo_tau_0_1`` ... ``foo_tau_0_9``. The continuous score is preserved
     for ROC/PR metrics; only the boolean decision and strategy name change.
     """
+    taus = DEFAULT_TAUS if taus is None else tuple(taus)
     frames = []
     for tau in taus:
         frame = predictions.copy()

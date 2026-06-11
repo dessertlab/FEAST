@@ -2,9 +2,8 @@
 
 The input is the per-family table produced by ``analysis.aggregation.mean_over_folds``:
 one row per ``(strategy, family)`` with metrics already averaged across CV folds. For
-each fusion strategy, this module compares the family-level metric values against two
-fixed baselines (traditional K-of-N and OR), computes the paired mean difference and
-writes a two-panel forest plot.
+each fusion strategy, this module compares the family-level metric values against the
+traditional K-of-N baseline, computes the paired mean difference and writes a forest plot.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ from analysis.aggregation import REPORT_METRICS
 from analysis.fusion.common import FUSER_ORDER, canonical_strategy_order, split_tau_strategy
 
 LOWER_IS_BETTER = {"fpr", "fnr"}
-DEFAULT_BASELINES = ("traditional", "or")
+DEFAULT_BASELINES = ("traditional",)
 CI_LEVEL = 0.95
 
 STATUS_IMPROVEMENT = "incremento_statistico"
@@ -198,7 +197,7 @@ def save_mean_difference_ci_plot(
     *,
     title: str | None = None,
 ) -> list[Path]:
-    """Save the two-subplot CI forest plot as SVG and PNG."""
+    """Save a paper-style CI forest plot as SVG and PNG."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.lines as mlines
@@ -212,29 +211,42 @@ def save_mean_difference_ci_plot(
         return []
 
     out_stem.parent.mkdir(parents=True, exist_ok=True)
-    baselines = list(dict.fromkeys(intervals["baseline"].astype(str)))
-    strategies = list(dict.fromkeys(intervals["strategy"].astype(str)))
+    preferred = "traditional" if (intervals["baseline"].astype(str) == "traditional").any() else str(intervals["baseline"].iloc[0])
+    frame = intervals[intervals["baseline"].astype(str) == preferred].copy()
+    if frame.empty:
+        return []
+
+    strategies = frame["strategy"].astype(str).tolist()
     labels = [_strategy_label(strategy) for strategy in strategies]
-    metric = str(intervals["metric"].iloc[0])
+    metric = str(frame["metric"].iloc[0])
+    baseline_title = (
+        str(frame["baseline_strategy"].iloc[0])
+        if "baseline_strategy" in frame.columns and not frame.empty
+        else preferred
+    )
 
-    fig_h = max(4.8, 0.38 * len(strategies) + 2.2)
-    fig_w = 15 if len(baselines) > 1 else 8
-    fig, axes = plt.subplots(1, len(baselines), figsize=(fig_w, fig_h), sharey=True, squeeze=False)
-    axes = axes[0]
     y_positions = list(range(len(strategies)))
+    fig_h = max(4.4, 0.34 * len(strategies) + 1.8)
+    fig_w = 8.2
+    rc = {
+        "font.family": "serif",
+        "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
+        "axes.edgecolor": "#222222",
+        "axes.linewidth": 0.8,
+        "xtick.color": "#222222",
+        "ytick.color": "#222222",
+        "text.color": "#222222",
+        "savefig.facecolor": "white",
+        "figure.facecolor": "white",
+    }
+    with plt.rc_context(rc):
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+        for y in y_positions:
+            if y % 2:
+                ax.axhspan(y - 0.5, y + 0.5, color="#f7f7f7", zorder=0)
+        ax.axvline(0.0, color="#222222", linewidth=0.9, linestyle="--", zorder=1)
 
-    for ax, baseline in zip(axes, baselines, strict=False):
-        frame = intervals[intervals["baseline"].astype(str) == baseline].set_index("strategy")
-        baseline_title = (
-            str(frame["baseline_strategy"].iloc[0])
-            if "baseline_strategy" in frame.columns and not frame.empty
-            else baseline
-        )
-        ax.axvline(0.0, color="#333333", linewidth=1.0, alpha=0.8)
-        for y, strategy in zip(y_positions, strategies, strict=False):
-            if strategy not in frame.index:
-                continue
-            row = frame.loc[strategy]
+        for y, (_idx, row) in zip(y_positions, frame.iterrows(), strict=False):
             mean = float(row["mean_difference"])
             ci_low = float(row["ci_low"])
             ci_high = float(row["ci_high"])
@@ -248,34 +260,50 @@ def save_mean_difference_ci_plot(
                 fmt=style["marker"],
                 color=style["color"],
                 ecolor=style["color"],
-                elinewidth=1.5,
-                capsize=3,
-                markersize=6,
+                elinewidth=1.1,
+                capsize=2.5,
+                capthick=1.0,
+                markersize=5.2,
+                markeredgewidth=0.8,
+                markeredgecolor="#222222",
+                zorder=3,
             )
-        ax.set_title(f"Confronto con {baseline_title}")
-        ax.set_xlabel(f"Delta medio {metric}")
-        ax.grid(axis="x", linestyle="--", alpha=0.35)
+
+        ax.set_yticks(y_positions, labels)
+        ax.invert_yaxis()
+        ax.set_xlabel(f"Mean difference in {metric} (strategy - {baseline_title})")
+        ax.set_ylabel("")
+        ax.set_title(title or f"95% CI of paired mean differences vs {baseline_title}", fontsize=11, pad=10)
+        ax.grid(axis="x", linestyle=":", linewidth=0.6, color="#bdbdbd", alpha=0.8)
+        ax.tick_params(axis="both", labelsize=8.5)
         for spine in ("top", "right"):
             ax.spines[spine].set_visible(False)
 
-    axes[0].set_yticks(y_positions, labels)
-    axes[0].invert_yaxis()
-    legend_handles = [
-        mlines.Line2D(
-            [], [], color=style["color"], marker=style["marker"], linestyle="None",
-            markersize=7, label=STATUS_LABELS[status],
+        legend_handles = [
+            mlines.Line2D(
+                [], [], color=style["color"], marker=style["marker"], linestyle="None",
+                markeredgecolor="#222222", markeredgewidth=0.8, markersize=6,
+                label=STATUS_LABELS[status],
+            )
+            for status, style in STATUS_STYLES.items()
+        ]
+        ax.legend(
+            handles=legend_handles,
+            loc="lower center",
+            bbox_to_anchor=(0.5, -0.18),
+            ncol=3,
+            frameon=False,
+            fontsize=8.5,
+            handletextpad=0.4,
+            columnspacing=1.2,
         )
-        for status, style in STATUS_STYLES.items()
-    ]
-    fig.legend(handles=legend_handles, loc="lower center", ncol=3, frameon=False)
-    fig.suptitle(title or f"IC 95% della differenza media ({metric})", y=0.995)
-    fig.tight_layout(rect=(0, 0.06, 1, 0.96))
+        fig.tight_layout(rect=(0, 0.04, 1, 1))
 
-    svg_path = out_stem.with_suffix(".svg")
-    png_path = out_stem.with_suffix(".png")
-    fig.savefig(svg_path)
-    fig.savefig(png_path, dpi=140)
-    plt.close(fig)
+        svg_path = out_stem.with_suffix(".svg")
+        png_path = out_stem.with_suffix(".png")
+        fig.savefig(svg_path, bbox_inches="tight")
+        fig.savefig(png_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
     return [svg_path, png_path]
 
 
@@ -288,7 +316,7 @@ def save_mean_difference_ci_report(
     tools: Sequence[str] = (),
     stem: str | None = None,
 ) -> tuple[pd.DataFrame, list[Path]]:
-    """Compute intervals, write the CSV, and save the SVG/PNG two-panel plot."""
+    """Compute intervals, write the CSV, and save the SVG/PNG forest plot."""
     out_dir.mkdir(parents=True, exist_ok=True)
     intervals = mean_difference_ci(per_family, metric=metric, baselines=baselines, tools=tools)
     name = stem or f"mean_difference_ci_{metric}"
