@@ -26,6 +26,7 @@ from analysis.calibration import compute_reliability, gt_family_support
 from analysis.canonical import CweCanonicalizer, all_raw_cwes
 from analysis.dataset import as_list, load_enriched
 from analysis.folds import multilabel_stratified_kfold, split_train_validation
+from analysis.family_performance_plots import save_family_performance_plots
 from analysis.fusion import (
     detection_from_predictions,
     detection_metrics,
@@ -225,6 +226,7 @@ def run_language_level(
     save_csv(operating_points, results_dir / "fusion_operating_points.csv")
     save_strategy_plots(overall, results_dir / "plots")
     save_best_variant_plots(overall, results_dir / "plots" / "best_variants")
+    save_family_performance_plots(per_family_mean, overall, results_dir / "plots" / "top_cwe_families", tools=tools)
     save_mean_difference_ci_report(per_family_mean, results_dir / "plots", metric="f1", tools=tools)
 
     _print_overall(language, level, overall, detection_overall)
