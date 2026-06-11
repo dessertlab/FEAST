@@ -34,6 +34,7 @@ from analysis.fusion import (
     run_fusion,
 )
 from analysis.fusion.predictions import tau_variant_table
+from analysis.mean_difference_ci import save_mean_difference_ci_report
 from analysis.reporting import save_best_variant_plots, save_config, save_csv, save_strategy_plots
 
 console = Console()
@@ -224,6 +225,7 @@ def run_language_level(
     save_csv(operating_points, results_dir / "fusion_operating_points.csv")
     save_strategy_plots(overall, results_dir / "plots")
     save_best_variant_plots(overall, results_dir / "plots" / "best_variants")
+    save_mean_difference_ci_report(per_family_mean, results_dir / "plots", metric="f1", tools=tools)
 
     _print_overall(language, level, overall, detection_overall)
     if not operating_points.empty:
