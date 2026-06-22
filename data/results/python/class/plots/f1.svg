@@ -1,62 +1,565 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="586" viewBox="0 0 960 586">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="5290" viewBox="0 0 960 5290">
 <style>text{font-family:Arial,sans-serif;font-size:12px}.t{font-size:16px;font-weight:700}.ax{stroke:#888;stroke-width:1}.bar{fill:#3568a8}.v{fill:#222}</style>
 <text class="t" x="0" y="20">f1 (support-weighted)</text>
-<line class="ax" x1="300" y1="34" x2="300" y2="576"/>
-<text x="0" y="57">weighted_fire_specificity_silence_sensitivity</text>
-<rect class="bar" x="300" y="42" width="114" height="19" rx="2"/>
-<text class="v" x="880" y="57">0.201</text>
-<text x="0" y="85">tool:bandit</text>
-<rect class="bar" x="300" y="70" width="114" height="19" rx="2"/>
-<text class="v" x="880" y="85">0.200</text>
-<text x="0" y="113">weighted_fire_ppv_silence_sensitivity</text>
-<rect class="bar" x="300" y="98" width="113" height="19" rx="2"/>
-<text class="v" x="880" y="113">0.199</text>
-<text x="0" y="141">or_1_of_4</text>
-<rect class="bar" x="300" y="126" width="110" height="19" rx="2"/>
-<text class="v" x="880" y="141">0.193</text>
-<text x="0" y="169">tool:semgrep</text>
-<rect class="bar" x="300" y="154" width="109" height="19" rx="2"/>
-<text class="v" x="880" y="169">0.192</text>
-<text x="0" y="197">noisy_or</text>
-<rect class="bar" x="300" y="182" width="107" height="19" rx="2"/>
-<text class="v" x="880" y="197">0.189</text>
-<text x="0" y="225">naive_bayes</text>
-<rect class="bar" x="300" y="210" width="107" height="19" rx="2"/>
-<text class="v" x="880" y="225">0.188</text>
-<text x="0" y="253">logistic_interactions</text>
-<rect class="bar" x="300" y="238" width="101" height="19" rx="2"/>
-<text class="v" x="880" y="253">0.177</text>
-<text x="0" y="281">logistic_regression</text>
-<rect class="bar" x="300" y="266" width="100" height="19" rx="2"/>
-<text class="v" x="880" y="281">0.177</text>
-<text x="0" y="309">weighted_fire_specificity_silence_npv</text>
-<rect class="bar" x="300" y="294" width="97" height="19" rx="2"/>
-<text class="v" x="880" y="309">0.170</text>
-<text x="0" y="337">bks</text>
-<rect class="bar" x="300" y="322" width="94" height="19" rx="2"/>
-<text class="v" x="880" y="337">0.166</text>
-<text x="0" y="365">traditional_2_of_supported</text>
-<rect class="bar" x="300" y="350" width="94" height="19" rx="2"/>
-<text class="v" x="880" y="365">0.165</text>
-<text x="0" y="393">traditional_2_of_4</text>
-<rect class="bar" x="300" y="378" width="94" height="19" rx="2"/>
-<text class="v" x="880" y="393">0.165</text>
-<text x="0" y="421">weighted_fire_ppv_silence_npv</text>
-<rect class="bar" x="300" y="406" width="71" height="19" rx="2"/>
-<text class="v" x="880" y="421">0.126</text>
-<text x="0" y="449">tool:codeql</text>
-<rect class="bar" x="300" y="434" width="70" height="19" rx="2"/>
-<text class="v" x="880" y="449">0.124</text>
-<text x="0" y="477">tool:pylint</text>
-<rect class="bar" x="300" y="462" width="55" height="19" rx="2"/>
-<text class="v" x="880" y="477">0.097</text>
-<text x="0" y="505">dst_dempster</text>
-<rect class="bar" x="300" y="490" width="40" height="19" rx="2"/>
-<text class="v" x="880" y="505">0.072</text>
-<text x="0" y="533">dst_pcr6</text>
-<rect class="bar" x="300" y="518" width="40" height="19" rx="2"/>
-<text class="v" x="880" y="533">0.072</text>
-<text x="0" y="561">dst_yager</text>
-<rect class="bar" x="300" y="546" width="40" height="19" rx="2"/>
-<text class="v" x="880" y="561">0.072</text>
+<line class="ax" x1="300" y1="34" x2="300" y2="5280"/>
+<text x="0" y="57">bks_tau_0_7</text>
+<rect class="bar" x="300" y="42" width="238" height="19" rx="2"/>
+<text class="v" x="880" y="57">0.419</text>
+<text x="0" y="85">bks_tau_0_8</text>
+<rect class="bar" x="300" y="70" width="235" height="19" rx="2"/>
+<text class="v" x="880" y="85">0.412</text>
+<text x="0" y="113">naive_bayes_tau_0_9</text>
+<rect class="bar" x="300" y="98" width="148" height="19" rx="2"/>
+<text class="v" x="880" y="113">0.261</text>
+<text x="0" y="141">naive_bayes_tau_0_2</text>
+<rect class="bar" x="300" y="126" width="134" height="19" rx="2"/>
+<text class="v" x="880" y="141">0.236</text>
+<text x="0" y="169">naive_bayes_tau_0_7</text>
+<rect class="bar" x="300" y="154" width="126" height="19" rx="2"/>
+<text class="v" x="880" y="169">0.221</text>
+<text x="0" y="197">logistic_regression_tau_0_9</text>
+<rect class="bar" x="300" y="182" width="122" height="19" rx="2"/>
+<text class="v" x="880" y="197">0.215</text>
+<text x="0" y="225">bks_tau_0_1</text>
+<rect class="bar" x="300" y="210" width="122" height="19" rx="2"/>
+<text class="v" x="880" y="225">0.215</text>
+<text x="0" y="253">weighted_fire_ppv_silence_npv_tau_0_1</text>
+<rect class="bar" x="300" y="238" width="121" height="19" rx="2"/>
+<text class="v" x="880" y="253">0.214</text>
+<text x="0" y="281">naive_bayes_tau_0_1</text>
+<rect class="bar" x="300" y="266" width="121" height="19" rx="2"/>
+<text class="v" x="880" y="281">0.213</text>
+<text x="0" y="309">logistic_interactions_tau_0_6</text>
+<rect class="bar" x="300" y="294" width="120" height="19" rx="2"/>
+<text class="v" x="880" y="309">0.212</text>
+<text x="0" y="337">weighted_fire_ppv_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="300" y="322" width="120" height="19" rx="2"/>
+<text class="v" x="880" y="337">0.212</text>
+<text x="0" y="365">logistic_regression_tau_0_6</text>
+<rect class="bar" x="300" y="350" width="120" height="19" rx="2"/>
+<text class="v" x="880" y="365">0.211</text>
+<text x="0" y="393">weighted_fire_ppv_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="300" y="378" width="119" height="19" rx="2"/>
+<text class="v" x="880" y="393">0.210</text>
+<text x="0" y="421">weighted_fire_ppv_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="300" y="406" width="119" height="19" rx="2"/>
+<text class="v" x="880" y="421">0.210</text>
+<text x="0" y="449">naive_bayes_tau_0_8</text>
+<rect class="bar" x="300" y="434" width="119" height="19" rx="2"/>
+<text class="v" x="880" y="449">0.209</text>
+<text x="0" y="477">weighted_fire_ppv_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="300" y="462" width="118" height="19" rx="2"/>
+<text class="v" x="880" y="477">0.208</text>
+<text x="0" y="505">weighted_fire_ppv_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="300" y="490" width="117" height="19" rx="2"/>
+<text class="v" x="880" y="505">0.206</text>
+<text x="0" y="533">bks_tau_0_3</text>
+<rect class="bar" x="300" y="518" width="116" height="19" rx="2"/>
+<text class="v" x="880" y="533">0.204</text>
+<text x="0" y="561">bks_tau_0_2</text>
+<rect class="bar" x="300" y="546" width="116" height="19" rx="2"/>
+<text class="v" x="880" y="561">0.204</text>
+<text x="0" y="589">naive_bayes_tau_0_3</text>
+<rect class="bar" x="300" y="574" width="115" height="19" rx="2"/>
+<text class="v" x="880" y="589">0.203</text>
+<text x="0" y="617">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="300" y="602" width="115" height="19" rx="2"/>
+<text class="v" x="880" y="617">0.203</text>
+<text x="0" y="645">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="300" y="630" width="115" height="19" rx="2"/>
+<text class="v" x="880" y="645">0.203</text>
+<text x="0" y="673">dst_yager_fire_specificity_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="300" y="658" width="115" height="19" rx="2"/>
+<text class="v" x="880" y="673">0.203</text>
+<text x="0" y="701">weighted_fire_specificity_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="300" y="686" width="115" height="19" rx="2"/>
+<text class="v" x="880" y="701">0.203</text>
+<text x="0" y="729">dst_dempster_fire_specificity_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="300" y="714" width="115" height="19" rx="2"/>
+<text class="v" x="880" y="729">0.203</text>
+<text x="0" y="757">tool:bandit</text>
+<rect class="bar" x="300" y="742" width="115" height="19" rx="2"/>
+<text class="v" x="880" y="757">0.202</text>
+<text x="0" y="785">logistic_interactions_tau_0_9</text>
+<rect class="bar" x="300" y="770" width="115" height="19" rx="2"/>
+<text class="v" x="880" y="785">0.202</text>
+<text x="0" y="813">weighted_fire_specificity_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="300" y="798" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="813">0.201</text>
+<text x="0" y="841">weighted_fire_specificity_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="300" y="826" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="841">0.201</text>
+<text x="0" y="869">dst_dempster_fire_specificity_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="300" y="854" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="869">0.201</text>
+<text x="0" y="897">dst_yager_fire_specificity_silence_npv_tau_0_4</text>
+<rect class="bar" x="300" y="882" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="897">0.201</text>
+<text x="0" y="925">dst_dempster_fire_specificity_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="300" y="910" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="925">0.201</text>
+<text x="0" y="953">dst_yager_fire_specificity_silence_npv_tau_0_3</text>
+<rect class="bar" x="300" y="938" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="953">0.201</text>
+<text x="0" y="981">dst_dempster_fire_specificity_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="300" y="966" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="981">0.201</text>
+<text x="0" y="1009">weighted_fire_specificity_silence_npv_tau_0_2</text>
+<rect class="bar" x="300" y="994" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1009">0.201</text>
+<text x="0" y="1037">weighted_fire_specificity_silence_npv_tau_0_1</text>
+<rect class="bar" x="300" y="1022" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1037">0.201</text>
+<text x="0" y="1065">weighted_fire_specificity_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="300" y="1050" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1065">0.201</text>
+<text x="0" y="1093">weighted_fire_specificity_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="300" y="1078" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1093">0.201</text>
+<text x="0" y="1121">dst_pcr6_fire_specificity_silence_npv_tau_0_2</text>
+<rect class="bar" x="300" y="1106" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1121">0.201</text>
+<text x="0" y="1149">dst_yager_fire_specificity_silence_npv_tau_0_2</text>
+<rect class="bar" x="300" y="1134" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1149">0.201</text>
+<text x="0" y="1177">dst_pcr6_fire_specificity_silence_npv_tau_0_1</text>
+<rect class="bar" x="300" y="1162" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1177">0.201</text>
+<text x="0" y="1205">dst_yager_fire_specificity_silence_npv_tau_0_1</text>
+<rect class="bar" x="300" y="1190" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1205">0.201</text>
+<text x="0" y="1233">bks_tau_0_6</text>
+<rect class="bar" x="300" y="1218" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1233">0.200</text>
+<text x="0" y="1261">dst_yager_fire_ppv_silence_npv_tau_0_1</text>
+<rect class="bar" x="300" y="1246" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1261">0.200</text>
+<text x="0" y="1289">dst_yager_fire_specificity_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="300" y="1274" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1289">0.200</text>
+<text x="0" y="1317">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="300" y="1302" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1317">0.200</text>
+<text x="0" y="1345">weighted_fire_specificity_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="300" y="1330" width="114" height="19" rx="2"/>
+<text class="v" x="880" y="1345">0.200</text>
+<text x="0" y="1373">dst_pcr6_fire_specificity_silence_npv_tau_0_3</text>
+<rect class="bar" x="300" y="1358" width="113" height="19" rx="2"/>
+<text class="v" x="880" y="1373">0.199</text>
+<text x="0" y="1401">weighted_fire_specificity_silence_npv_tau_0_3</text>
+<rect class="bar" x="300" y="1386" width="112" height="19" rx="2"/>
+<text class="v" x="880" y="1401">0.198</text>
+<text x="0" y="1429">dst_yager_fire_specificity_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="300" y="1414" width="112" height="19" rx="2"/>
+<text class="v" x="880" y="1429">0.197</text>
+<text x="0" y="1457">weighted_fire_specificity_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="300" y="1442" width="112" height="19" rx="2"/>
+<text class="v" x="880" y="1457">0.197</text>
+<text x="0" y="1485">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="300" y="1470" width="111" height="19" rx="2"/>
+<text class="v" x="880" y="1485">0.196</text>
+<text x="0" y="1513">weighted_fire_ppv_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="300" y="1498" width="111" height="19" rx="2"/>
+<text class="v" x="880" y="1513">0.196</text>
+<text x="0" y="1541">or_1_of_4</text>
+<rect class="bar" x="300" y="1526" width="110" height="19" rx="2"/>
+<text class="v" x="880" y="1541">0.194</text>
+<text x="0" y="1569">naive_bayes_tau_0_4</text>
+<rect class="bar" x="300" y="1554" width="110" height="19" rx="2"/>
+<text class="v" x="880" y="1569">0.194</text>
+<text x="0" y="1597">weighted_fire_specificity_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="300" y="1582" width="110" height="19" rx="2"/>
+<text class="v" x="880" y="1597">0.194</text>
+<text x="0" y="1625">tool:semgrep</text>
+<rect class="bar" x="300" y="1610" width="109" height="19" rx="2"/>
+<text class="v" x="880" y="1625">0.193</text>
+<text x="0" y="1653">dst_yager_fire_specificity_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="300" y="1638" width="109" height="19" rx="2"/>
+<text class="v" x="880" y="1653">0.192</text>
+<text x="0" y="1681">logistic_regression_tau_0_7</text>
+<rect class="bar" x="300" y="1666" width="109" height="19" rx="2"/>
+<text class="v" x="880" y="1681">0.192</text>
+<text x="0" y="1709">logistic_interactions_tau_0_7</text>
+<rect class="bar" x="300" y="1694" width="109" height="19" rx="2"/>
+<text class="v" x="880" y="1709">0.192</text>
+<text x="0" y="1737">weighted_fire_ppv_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="300" y="1722" width="109" height="19" rx="2"/>
+<text class="v" x="880" y="1737">0.192</text>
+<text x="0" y="1765">dst_dempster_fire_specificity_silence_npv_tau_0_1</text>
+<rect class="bar" x="300" y="1750" width="108" height="19" rx="2"/>
+<text class="v" x="880" y="1765">0.191</text>
+<text x="0" y="1793">dst_dempster_fire_specificity_silence_npv_tau_0_3</text>
+<rect class="bar" x="300" y="1778" width="108" height="19" rx="2"/>
+<text class="v" x="880" y="1793">0.190</text>
+<text x="0" y="1821">dst_dempster_fire_specificity_silence_npv_tau_0_4</text>
+<rect class="bar" x="300" y="1806" width="108" height="19" rx="2"/>
+<text class="v" x="880" y="1821">0.190</text>
+<text x="0" y="1849">dst_dempster_fire_specificity_silence_npv_tau_0_2</text>
+<rect class="bar" x="300" y="1834" width="107" height="19" rx="2"/>
+<text class="v" x="880" y="1849">0.189</text>
+<text x="0" y="1877">naive_bayes_tau_0_5</text>
+<rect class="bar" x="300" y="1862" width="107" height="19" rx="2"/>
+<text class="v" x="880" y="1877">0.188</text>
+<text x="0" y="1905">weighted_fire_specificity_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="300" y="1890" width="107" height="19" rx="2"/>
+<text class="v" x="880" y="1905">0.188</text>
+<text x="0" y="1933">dst_pcr6_fire_specificity_silence_npv_tau_0_4</text>
+<rect class="bar" x="300" y="1918" width="106" height="19" rx="2"/>
+<text class="v" x="880" y="1933">0.188</text>
+<text x="0" y="1961">weighted_fire_specificity_silence_npv_tau_0_4</text>
+<rect class="bar" x="300" y="1946" width="106" height="19" rx="2"/>
+<text class="v" x="880" y="1961">0.188</text>
+<text x="0" y="1989">logistic_interactions_tau_0_8</text>
+<rect class="bar" x="300" y="1974" width="106" height="19" rx="2"/>
+<text class="v" x="880" y="1989">0.187</text>
+<text x="0" y="2017">dst_pcr6_fire_ppv_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="300" y="2002" width="106" height="19" rx="2"/>
+<text class="v" x="880" y="2017">0.186</text>
+<text x="0" y="2045">dst_dempster_fire_ppv_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="300" y="2030" width="106" height="19" rx="2"/>
+<text class="v" x="880" y="2045">0.186</text>
+<text x="0" y="2073">logistic_regression_tau_0_8</text>
+<rect class="bar" x="300" y="2058" width="105" height="19" rx="2"/>
+<text class="v" x="880" y="2073">0.186</text>
+<text x="0" y="2101">weighted_fire_ppv_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="300" y="2086" width="105" height="19" rx="2"/>
+<text class="v" x="880" y="2101">0.185</text>
+<text x="0" y="2129">dst_pcr6_fire_ppv_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="300" y="2114" width="105" height="19" rx="2"/>
+<text class="v" x="880" y="2129">0.184</text>
+<text x="0" y="2157">dst_yager_fire_ppv_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="300" y="2142" width="104" height="19" rx="2"/>
+<text class="v" x="880" y="2157">0.184</text>
+<text x="0" y="2185">dst_dempster_fire_ppv_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="300" y="2170" width="104" height="19" rx="2"/>
+<text class="v" x="880" y="2185">0.184</text>
+<text x="0" y="2213">naive_bayes_tau_0_6</text>
+<rect class="bar" x="300" y="2198" width="104" height="19" rx="2"/>
+<text class="v" x="880" y="2213">0.183</text>
+<text x="0" y="2241">bks_tau_0_4</text>
+<rect class="bar" x="300" y="2226" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="2241">0.182</text>
+<text x="0" y="2269">dst_dempster_fire_specificity_silence_npv_tau_0_5</text>
+<rect class="bar" x="300" y="2254" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="2269">0.182</text>
+<text x="0" y="2297">dst_yager_fire_specificity_silence_npv_tau_0_5</text>
+<rect class="bar" x="300" y="2282" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="2297">0.182</text>
+<text x="0" y="2325">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="300" y="2310" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="2325">0.182</text>
+<text x="0" y="2353">dst_dempster_fire_specificity_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="300" y="2338" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="2353">0.182</text>
+<text x="0" y="2381">dst_yager_fire_specificity_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="300" y="2366" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="2381">0.182</text>
+<text x="0" y="2409">logistic_interactions_tau_0_5</text>
+<rect class="bar" x="300" y="2394" width="102" height="19" rx="2"/>
+<text class="v" x="880" y="2409">0.180</text>
+<text x="0" y="2437">dst_pcr6_fire_ppv_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="300" y="2422" width="102" height="19" rx="2"/>
+<text class="v" x="880" y="2437">0.180</text>
+<text x="0" y="2465">dst_yager_fire_ppv_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="300" y="2450" width="102" height="19" rx="2"/>
+<text class="v" x="880" y="2465">0.180</text>
+<text x="0" y="2493">dst_dempster_fire_ppv_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="300" y="2478" width="102" height="19" rx="2"/>
+<text class="v" x="880" y="2493">0.180</text>
+<text x="0" y="2521">weighted_fire_specificity_silence_npv_tau_0_5</text>
+<rect class="bar" x="300" y="2506" width="102" height="19" rx="2"/>
+<text class="v" x="880" y="2521">0.179</text>
+<text x="0" y="2549">dst_pcr6_fire_specificity_silence_npv_tau_0_5</text>
+<rect class="bar" x="300" y="2534" width="102" height="19" rx="2"/>
+<text class="v" x="880" y="2549">0.179</text>
+<text x="0" y="2577">logistic_regression_tau_0_5</text>
+<rect class="bar" x="300" y="2562" width="101" height="19" rx="2"/>
+<text class="v" x="880" y="2577">0.179</text>
+<text x="0" y="2605">dst_pcr6_fire_ppv_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="300" y="2590" width="101" height="19" rx="2"/>
+<text class="v" x="880" y="2605">0.177</text>
+<text x="0" y="2633">dst_dempster_fire_ppv_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="300" y="2618" width="101" height="19" rx="2"/>
+<text class="v" x="880" y="2633">0.177</text>
+<text x="0" y="2661">dst_yager_fire_ppv_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="300" y="2646" width="100" height="19" rx="2"/>
+<text class="v" x="880" y="2661">0.177</text>
+<text x="0" y="2689">dst_yager_fire_ppv_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="300" y="2674" width="100" height="19" rx="2"/>
+<text class="v" x="880" y="2689">0.176</text>
+<text x="0" y="2717">bks_tau_0_5</text>
+<rect class="bar" x="300" y="2702" width="99" height="19" rx="2"/>
+<text class="v" x="880" y="2717">0.175</text>
+<text x="0" y="2745">dst_yager_fire_ppv_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="300" y="2730" width="98" height="19" rx="2"/>
+<text class="v" x="880" y="2745">0.172</text>
+<text x="0" y="2773">dst_pcr6_fire_ppv_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="300" y="2758" width="98" height="19" rx="2"/>
+<text class="v" x="880" y="2773">0.172</text>
+<text x="0" y="2801">dst_dempster_fire_ppv_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="300" y="2786" width="97" height="19" rx="2"/>
+<text class="v" x="880" y="2801">0.172</text>
+<text x="0" y="2829">weighted_fire_ppv_silence_npv_tau_0_2</text>
+<rect class="bar" x="300" y="2814" width="97" height="19" rx="2"/>
+<text class="v" x="880" y="2829">0.171</text>
+<text x="0" y="2857">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="300" y="2842" width="96" height="19" rx="2"/>
+<text class="v" x="880" y="2857">0.170</text>
+<text x="0" y="2885">dst_yager_fire_specificity_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="300" y="2870" width="96" height="19" rx="2"/>
+<text class="v" x="880" y="2885">0.170</text>
+<text x="0" y="2913">dst_dempster_fire_specificity_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="300" y="2898" width="96" height="19" rx="2"/>
+<text class="v" x="880" y="2913">0.170</text>
+<text x="0" y="2941">traditional_2_of_4</text>
+<rect class="bar" x="300" y="2926" width="95" height="19" rx="2"/>
+<text class="v" x="880" y="2941">0.168</text>
+<text x="0" y="2969">dst_yager_fire_ppv_silence_npv_tau_0_2</text>
+<rect class="bar" x="300" y="2954" width="95" height="19" rx="2"/>
+<text class="v" x="880" y="2969">0.167</text>
+<text x="0" y="2997">traditional_2_of_supported</text>
+<rect class="bar" x="300" y="2982" width="95" height="19" rx="2"/>
+<text class="v" x="880" y="2997">0.167</text>
+<text x="0" y="3025">dst_pcr6_fire_ppv_silence_npv_tau_0_1</text>
+<rect class="bar" x="300" y="3010" width="95" height="19" rx="2"/>
+<text class="v" x="880" y="3025">0.167</text>
+<text x="0" y="3053">dst_pcr6_fire_ppv_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="300" y="3038" width="93" height="19" rx="2"/>
+<text class="v" x="880" y="3053">0.165</text>
+<text x="0" y="3081">dst_dempster_fire_ppv_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="300" y="3066" width="93" height="19" rx="2"/>
+<text class="v" x="880" y="3081">0.165</text>
+<text x="0" y="3109">dst_yager_fire_ppv_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="300" y="3094" width="93" height="19" rx="2"/>
+<text class="v" x="880" y="3109">0.164</text>
+<text x="0" y="3137">dst_dempster_fire_specificity_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="300" y="3122" width="93" height="19" rx="2"/>
+<text class="v" x="880" y="3137">0.163</text>
+<text x="0" y="3165">dst_yager_fire_specificity_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="300" y="3150" width="93" height="19" rx="2"/>
+<text class="v" x="880" y="3165">0.163</text>
+<text x="0" y="3193">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="300" y="3178" width="93" height="19" rx="2"/>
+<text class="v" x="880" y="3193">0.163</text>
+<text x="0" y="3221">dst_dempster_fire_specificity_silence_npv_tau_0_6</text>
+<rect class="bar" x="300" y="3206" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="3221">0.158</text>
+<text x="0" y="3249">dst_dempster_fire_specificity_silence_npv_tau_0_7</text>
+<rect class="bar" x="300" y="3234" width="86" height="19" rx="2"/>
+<text class="v" x="880" y="3249">0.152</text>
+<text x="0" y="3277">dst_dempster_fire_specificity_silence_npv_tau_0_8</text>
+<rect class="bar" x="300" y="3262" width="85" height="19" rx="2"/>
+<text class="v" x="880" y="3277">0.150</text>
+<text x="0" y="3305">dst_yager_fire_ppv_silence_npv_tau_0_3</text>
+<rect class="bar" x="300" y="3290" width="84" height="19" rx="2"/>
+<text class="v" x="880" y="3305">0.148</text>
+<text x="0" y="3333">weighted_fire_specificity_silence_npv_tau_0_6</text>
+<rect class="bar" x="300" y="3318" width="82" height="19" rx="2"/>
+<text class="v" x="880" y="3333">0.144</text>
+<text x="0" y="3361">dst_pcr6_fire_specificity_silence_npv_tau_0_6</text>
+<rect class="bar" x="300" y="3346" width="82" height="19" rx="2"/>
+<text class="v" x="880" y="3361">0.144</text>
+<text x="0" y="3389">weighted_fire_ppv_silence_npv_tau_0_3</text>
+<rect class="bar" x="300" y="3374" width="80" height="19" rx="2"/>
+<text class="v" x="880" y="3389">0.141</text>
+<text x="0" y="3417">weighted_fire_ppv_silence_npv_tau_0_4</text>
+<rect class="bar" x="300" y="3402" width="79" height="19" rx="2"/>
+<text class="v" x="880" y="3417">0.139</text>
+<text x="0" y="3445">logistic_interactions_tau_0_4</text>
+<rect class="bar" x="300" y="3430" width="78" height="19" rx="2"/>
+<text class="v" x="880" y="3445">0.138</text>
+<text x="0" y="3473">logistic_regression_tau_0_4</text>
+<rect class="bar" x="300" y="3458" width="78" height="19" rx="2"/>
+<text class="v" x="880" y="3473">0.138</text>
+<text x="0" y="3501">dst_dempster_fire_specificity_silence_npv_tau_0_9</text>
+<rect class="bar" x="300" y="3486" width="77" height="19" rx="2"/>
+<text class="v" x="880" y="3501">0.136</text>
+<text x="0" y="3529">dst_dempster_fire_ppv_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="300" y="3514" width="76" height="19" rx="2"/>
+<text class="v" x="880" y="3529">0.135</text>
+<text x="0" y="3557">dst_pcr6_fire_ppv_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="300" y="3542" width="76" height="19" rx="2"/>
+<text class="v" x="880" y="3557">0.135</text>
+<text x="0" y="3585">weighted_fire_ppv_silence_npv_tau_0_5</text>
+<rect class="bar" x="300" y="3570" width="76" height="19" rx="2"/>
+<text class="v" x="880" y="3585">0.133</text>
+<text x="0" y="3613">dst_yager_fire_ppv_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="300" y="3598" width="75" height="19" rx="2"/>
+<text class="v" x="880" y="3613">0.133</text>
+<text x="0" y="3641">dst_pcr6_fire_ppv_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="300" y="3626" width="75" height="19" rx="2"/>
+<text class="v" x="880" y="3641">0.133</text>
+<text x="0" y="3669">dst_dempster_fire_ppv_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="300" y="3654" width="75" height="19" rx="2"/>
+<text class="v" x="880" y="3669">0.133</text>
+<text x="0" y="3697">dst_dempster_fire_specificity_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="300" y="3682" width="75" height="19" rx="2"/>
+<text class="v" x="880" y="3697">0.132</text>
+<text x="0" y="3725">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="300" y="3710" width="75" height="19" rx="2"/>
+<text class="v" x="880" y="3725">0.132</text>
+<text x="0" y="3753">dst_yager_fire_specificity_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="300" y="3738" width="75" height="19" rx="2"/>
+<text class="v" x="880" y="3753">0.132</text>
+<text x="0" y="3781">dst_pcr6_fire_ppv_silence_npv_tau_0_2</text>
+<rect class="bar" x="300" y="3766" width="74" height="19" rx="2"/>
+<text class="v" x="880" y="3781">0.131</text>
+<text x="0" y="3809">logistic_interactions_tau_0_3</text>
+<rect class="bar" x="300" y="3794" width="74" height="19" rx="2"/>
+<text class="v" x="880" y="3809">0.131</text>
+<text x="0" y="3837">logistic_regression_tau_0_3</text>
+<rect class="bar" x="300" y="3822" width="74" height="19" rx="2"/>
+<text class="v" x="880" y="3837">0.131</text>
+<text x="0" y="3865">dst_dempster_fire_ppv_silence_npv_tau_0_1</text>
+<rect class="bar" x="300" y="3850" width="71" height="19" rx="2"/>
+<text class="v" x="880" y="3865">0.126</text>
+<text x="0" y="3893">dst_yager_fire_ppv_silence_npv_tau_0_4</text>
+<rect class="bar" x="300" y="3878" width="71" height="19" rx="2"/>
+<text class="v" x="880" y="3893">0.125</text>
+<text x="0" y="3921">dst_pcr6_fire_ppv_silence_npv_tau_0_3</text>
+<rect class="bar" x="300" y="3906" width="71" height="19" rx="2"/>
+<text class="v" x="880" y="3921">0.125</text>
+<text x="0" y="3949">tool:codeql</text>
+<rect class="bar" x="300" y="3934" width="71" height="19" rx="2"/>
+<text class="v" x="880" y="3949">0.125</text>
+<text x="0" y="3977">weighted_fire_ppv_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="300" y="3962" width="68" height="19" rx="2"/>
+<text class="v" x="880" y="3977">0.120</text>
+<text x="0" y="4005">dst_dempster_fire_ppv_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="300" y="3990" width="66" height="19" rx="2"/>
+<text class="v" x="880" y="4005">0.117</text>
+<text x="0" y="4033">dst_pcr6_fire_ppv_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="300" y="4018" width="66" height="19" rx="2"/>
+<text class="v" x="880" y="4033">0.116</text>
+<text x="0" y="4061">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="300" y="4046" width="65" height="19" rx="2"/>
+<text class="v" x="880" y="4061">0.115</text>
+<text x="0" y="4089">dst_yager_fire_specificity_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="300" y="4074" width="65" height="19" rx="2"/>
+<text class="v" x="880" y="4089">0.115</text>
+<text x="0" y="4117">dst_yager_fire_ppv_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="300" y="4102" width="65" height="19" rx="2"/>
+<text class="v" x="880" y="4117">0.115</text>
+<text x="0" y="4145">dst_dempster_fire_specificity_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="300" y="4130" width="65" height="19" rx="2"/>
+<text class="v" x="880" y="4145">0.115</text>
+<text x="0" y="4173">dst_yager_fire_ppv_silence_npv_tau_0_9</text>
+<rect class="bar" x="300" y="4158" width="63" height="19" rx="2"/>
+<text class="v" x="880" y="4173">0.111</text>
+<text x="0" y="4201">dst_pcr6_fire_ppv_silence_npv_tau_0_9</text>
+<rect class="bar" x="300" y="4186" width="63" height="19" rx="2"/>
+<text class="v" x="880" y="4201">0.111</text>
+<text x="0" y="4229">dst_yager_fire_ppv_silence_npv_tau_0_8</text>
+<rect class="bar" x="300" y="4214" width="61" height="19" rx="2"/>
+<text class="v" x="880" y="4229">0.109</text>
+<text x="0" y="4257">dst_pcr6_fire_ppv_silence_npv_tau_0_8</text>
+<rect class="bar" x="300" y="4242" width="61" height="19" rx="2"/>
+<text class="v" x="880" y="4257">0.109</text>
+<text x="0" y="4285">tool:pylint</text>
+<rect class="bar" x="300" y="4270" width="60" height="19" rx="2"/>
+<text class="v" x="880" y="4285">0.107</text>
+<text x="0" y="4313">dst_pcr6_fire_ppv_silence_npv_tau_0_4</text>
+<rect class="bar" x="300" y="4298" width="58" height="19" rx="2"/>
+<text class="v" x="880" y="4313">0.102</text>
+<text x="0" y="4341">weighted_fire_specificity_silence_npv_tau_0_7</text>
+<rect class="bar" x="300" y="4326" width="57" height="19" rx="2"/>
+<text class="v" x="880" y="4341">0.101</text>
+<text x="0" y="4369">dst_pcr6_fire_specificity_silence_npv_tau_0_7</text>
+<rect class="bar" x="300" y="4354" width="57" height="19" rx="2"/>
+<text class="v" x="880" y="4369">0.101</text>
+<text x="0" y="4397">dst_dempster_fire_ppv_silence_npv_tau_0_2</text>
+<rect class="bar" x="300" y="4382" width="53" height="19" rx="2"/>
+<text class="v" x="880" y="4397">0.095</text>
+<text x="0" y="4425">dst_yager_fire_ppv_silence_npv_tau_0_7</text>
+<rect class="bar" x="300" y="4410" width="53" height="19" rx="2"/>
+<text class="v" x="880" y="4425">0.093</text>
+<text x="0" y="4453">dst_pcr6_fire_ppv_silence_npv_tau_0_7</text>
+<rect class="bar" x="300" y="4438" width="53" height="19" rx="2"/>
+<text class="v" x="880" y="4453">0.093</text>
+<text x="0" y="4481">dst_pcr6_fire_ppv_silence_npv_tau_0_6</text>
+<rect class="bar" x="300" y="4466" width="49" height="19" rx="2"/>
+<text class="v" x="880" y="4481">0.088</text>
+<text x="0" y="4509">dst_yager_fire_ppv_silence_npv_tau_0_6</text>
+<rect class="bar" x="300" y="4494" width="49" height="19" rx="2"/>
+<text class="v" x="880" y="4509">0.088</text>
+<text x="0" y="4537">weighted_fire_ppv_silence_npv_tau_0_7</text>
+<rect class="bar" x="300" y="4522" width="49" height="19" rx="2"/>
+<text class="v" x="880" y="4537">0.088</text>
+<text x="0" y="4565">weighted_fire_ppv_silence_npv_tau_0_6</text>
+<rect class="bar" x="300" y="4550" width="49" height="19" rx="2"/>
+<text class="v" x="880" y="4565">0.088</text>
+<text x="0" y="4593">weighted_fire_ppv_silence_npv_tau_0_8</text>
+<rect class="bar" x="300" y="4578" width="49" height="19" rx="2"/>
+<text class="v" x="880" y="4593">0.088</text>
+<text x="0" y="4621">weighted_fire_ppv_silence_npv_tau_0_9</text>
+<rect class="bar" x="300" y="4606" width="49" height="19" rx="2"/>
+<text class="v" x="880" y="4621">0.088</text>
+<text x="0" y="4649">dst_yager_fire_ppv_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="300" y="4634" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4649">0.085</text>
+<text x="0" y="4677">dst_yager_fire_specificity_silence_npv_tau_0_8</text>
+<rect class="bar" x="300" y="4662" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4677">0.085</text>
+<text x="0" y="4705">weighted_fire_specificity_silence_npv_tau_0_9</text>
+<rect class="bar" x="300" y="4690" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4705">0.085</text>
+<text x="0" y="4733">dst_pcr6_fire_specificity_silence_npv_tau_0_8</text>
+<rect class="bar" x="300" y="4718" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4733">0.085</text>
+<text x="0" y="4761">dst_pcr6_fire_specificity_silence_npv_tau_0_9</text>
+<rect class="bar" x="300" y="4746" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4761">0.085</text>
+<text x="0" y="4789">weighted_fire_specificity_silence_npv_tau_0_8</text>
+<rect class="bar" x="300" y="4774" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4789">0.085</text>
+<text x="0" y="4817">dst_yager_fire_specificity_silence_npv_tau_0_9</text>
+<rect class="bar" x="300" y="4802" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4817">0.085</text>
+<text x="0" y="4845">dst_yager_fire_specificity_silence_npv_tau_0_7</text>
+<rect class="bar" x="300" y="4830" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4845">0.085</text>
+<text x="0" y="4873">dst_yager_fire_specificity_silence_npv_tau_0_6</text>
+<rect class="bar" x="300" y="4858" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4873">0.085</text>
+<text x="0" y="4901">logistic_interactions_tau_0_2</text>
+<rect class="bar" x="300" y="4886" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4901">0.085</text>
+<text x="0" y="4929">logistic_regression_tau_0_2</text>
+<rect class="bar" x="300" y="4914" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4929">0.085</text>
+<text x="0" y="4957">logistic_interactions_tau_0_1</text>
+<rect class="bar" x="300" y="4942" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4957">0.085</text>
+<text x="0" y="4985">logistic_regression_tau_0_1</text>
+<rect class="bar" x="300" y="4970" width="48" height="19" rx="2"/>
+<text class="v" x="880" y="4985">0.085</text>
+<text x="0" y="5013">dst_dempster_fire_ppv_silence_npv_tau_0_8</text>
+<rect class="bar" x="300" y="4998" width="47" height="19" rx="2"/>
+<text class="v" x="880" y="5013">0.084</text>
+<text x="0" y="5041">dst_dempster_fire_ppv_silence_npv_tau_0_7</text>
+<rect class="bar" x="300" y="5026" width="46" height="19" rx="2"/>
+<text class="v" x="880" y="5041">0.081</text>
+<text x="0" y="5069">dst_dempster_fire_ppv_silence_npv_tau_0_9</text>
+<rect class="bar" x="300" y="5054" width="45" height="19" rx="2"/>
+<text class="v" x="880" y="5069">0.081</text>
+<text x="0" y="5097">dst_dempster_fire_ppv_silence_npv_tau_0_6</text>
+<rect class="bar" x="300" y="5082" width="44" height="19" rx="2"/>
+<text class="v" x="880" y="5097">0.078</text>
+<text x="0" y="5125">dst_yager_fire_ppv_silence_npv_tau_0_5</text>
+<rect class="bar" x="300" y="5110" width="44" height="19" rx="2"/>
+<text class="v" x="880" y="5125">0.077</text>
+<text x="0" y="5153">dst_dempster_fire_ppv_silence_npv_tau_0_4</text>
+<rect class="bar" x="300" y="5138" width="44" height="19" rx="2"/>
+<text class="v" x="880" y="5153">0.077</text>
+<text x="0" y="5181">dst_pcr6_fire_ppv_silence_npv_tau_0_5</text>
+<rect class="bar" x="300" y="5166" width="44" height="19" rx="2"/>
+<text class="v" x="880" y="5181">0.077</text>
+<text x="0" y="5209">dst_dempster_fire_ppv_silence_npv_tau_0_5</text>
+<rect class="bar" x="300" y="5194" width="44" height="19" rx="2"/>
+<text class="v" x="880" y="5209">0.077</text>
+<text x="0" y="5237">dst_dempster_fire_ppv_silence_npv_tau_0_3</text>
+<rect class="bar" x="300" y="5222" width="44" height="19" rx="2"/>
+<text class="v" x="880" y="5237">0.077</text>
+<text x="0" y="5265">bks_tau_0_9</text>
+<text class="v" x="300" y="5265">n/a</text>
 </svg>
