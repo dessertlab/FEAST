@@ -1350,6 +1350,7 @@ def cmd_fusion(args) -> None:
         seed=args.seed,
         enriched_dir=ENRICHED_DIR,
         results_root=RESULTS_DIR,
+        tier=args.tier,
     )
 
 
@@ -1499,9 +1500,19 @@ examples:
         help='Number of cross-validation folds  [default: 5]',
     )
     fus.add_argument(
+        '--tier', choices=['base', 'medium', 'full'], default='base', metavar='TIER',
+        help=(
+            'Analysis tier — controls which ML strategies are included and the '
+            'minimum family support floor:\n'
+            '  base   (default) all families (min ≥ n_splits), existing strategies only\n'
+            '  medium           families with ≥ 30 GT occurrences, adds Decision Tree\n'
+            '  full             families with ≥ 100 GT occurrences, adds DT + RF + GB'
+        ),
+    )
+    fus.add_argument(
         '--min-cwe-count', type=int, default=None, metavar='M', dest='min_cwe_count',
-        help='Drop CWEs with fewer than M exact ground-truth occurrences from the '
-             'grid and stratification  [default: equal to --n-splits]',
+        help='Override the tier\'s support floor: drop CWEs with fewer than M exact '
+             'ground-truth occurrences  [default: set by --tier]',
     )
     fus.add_argument(
         '--threshold', type=int, default=2, metavar='K',

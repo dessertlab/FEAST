@@ -28,6 +28,7 @@ from analysis.dataset import as_list, load_enriched
 from analysis.folds import multilabel_stratified_kfold, split_train_validation
 from analysis.family_performance_plots import save_family_performance_plots
 from analysis.fusion import (
+    TIER_MIN_COUNT,
     detection_from_predictions,
     detection_metrics,
     evaluate_predictions,
@@ -151,10 +152,20 @@ def run_language_level(
     seed: int = 42,
     enriched_dir: str | Path = "data/enriched",
     results_root: str | Path = "data/results",
+    tier: str = "base",
 ) -> dict:
-    """Run the full experiment for one (language, canonical level)."""
+    """Run the full experiment for one (language, canonical level).
+
+    ``tier`` controls both the minimum family support and the ML strategy set:
+      base   — min_cwe_count default (= n_splits); existing strategies only
+      medium — min_cwe_count = 30; adds Decision Tree
+      full   — min_cwe_count = 100; adds Decision Tree + Random Forest + Gradient Boosting
+
+    An explicit ``min_cwe_count`` overrides the tier's default floor.
+    """
+    effective_min = TIER_MIN_COUNT.get(tier, n_splits) if min_cwe_count is None else min_cwe_count
     try:
-        prep = prepare_canonical(language, level, n_splits=n_splits, min_cwe_count=min_cwe_count,
+        prep = prepare_canonical(language, level, n_splits=n_splits, min_cwe_count=effective_min,
                                  exclude=exclude, seed=seed, enriched_dir=enriched_dir)
     except ValueError as exc:
         console.print(f"[red]{exc}[/red]")
@@ -185,7 +196,8 @@ def run_language_level(
 
         predictions = run_fusion(cal_df, val_df, reliability.drop(columns="fold"),
                                  tools, families, threshold=threshold, seed=seed,
-                                 calibration_metrics=calibration_metrics, taus=taus)
+                                 calibration_metrics=calibration_metrics, taus=taus,
+                                 tier=tier)
         per_family = evaluate_predictions(predictions, group_cols=("strategy", "family"))
         per_family.insert(0, "fold", fold)
         per_family_frames.append(per_family)

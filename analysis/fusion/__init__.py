@@ -14,6 +14,11 @@ import pandas as pd
 from analysis.fusion.baselines import or_predictions, single_tool_predictions
 from analysis.fusion.bayes import naive_bayes_predictions
 from analysis.fusion.bks import bks_predictions
+from analysis.fusion.ml import (
+    decision_tree_predictions,
+    gradient_boosting_predictions,
+    random_forest_predictions,
+)
 from analysis.fusion.common import (
     metric_pairs_for_calibration,
     PREDICTION_COLUMNS,
@@ -43,7 +48,14 @@ __all__ = [
     "canonical_strategy_order",
     "DEFAULT_WEIGHTED_STRATEGIES",
     "PREDICTION_COLUMNS",
+    "TIER_MIN_COUNT",
 ]
+
+# Minimum GT occurrences per family for each analysis tier.
+# base   — all families that survive the fold-stability floor (= n_splits, default 5)
+# medium — adds Decision Tree; requires ≥ 30 samples for stable DT leaf estimates
+# full   — adds Random Forest + Gradient Boosting; requires ≥ 100 samples
+TIER_MIN_COUNT: dict[str, int] = {"base": 5, "medium": 30, "full": 100}
 
 
 def run_fusion(
@@ -57,11 +69,17 @@ def run_fusion(
     include_logistic_regression: bool = True,
     calibration_metrics: Sequence[str] | None = None,
     taus: Sequence[float] | None = None,
+    tier: str = "base",
 ) -> pd.DataFrame:
     """Run all fusion strategies on one fold's validation split.
 
     ``reliability`` is the per-(tool, family) calibration table; ``calibration_df`` is only
-    needed by the strategies that learn (logistic regression).
+    needed by the strategies that learn (logistic regression, ML classifiers).
+
+    ``tier`` controls which ML strategies are included:
+      base   — existing strategies only (BKS, logistic, weighted, DST, etc.)
+      medium — adds Decision Tree (requires ≥30 GT occurrences, enforced upstream)
+      full   — adds Decision Tree + Random Forest + Gradient Boosting (≥100 GT occ.)
     """
     metric_pairs = metric_pairs_for_calibration(calibration_metrics)
     weighted_strategies = tuple(WeightedVotingStrategy(fire, silence) for fire, silence in metric_pairs)
@@ -99,5 +117,13 @@ def run_fusion(
             logistic_regression_predictions(calibration_df, validation_df, tools, families, labels, fire_index, seed=seed))
         scored_fuser_frames.append(
             logistic_regression_predictions(calibration_df, validation_df, tools, families, labels, fire_index, seed=seed, interactions=True))
+    if tier in ("medium", "full"):
+        scored_fuser_frames.append(
+            decision_tree_predictions(calibration_df, validation_df, tools, families, labels, fire_index, seed=seed))
+    if tier == "full":
+        scored_fuser_frames.append(
+            random_forest_predictions(calibration_df, validation_df, tools, families, labels, fire_index, seed=seed))
+        scored_fuser_frames.append(
+            gradient_boosting_predictions(calibration_df, validation_df, tools, families, labels, fire_index, seed=seed))
     scored_fusers = expand_tau_variants(pd.concat(scored_fuser_frames, ignore_index=True), taus=taus)
     return pd.concat([*baseline_frames, scored_fusers], ignore_index=True)

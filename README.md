@@ -2,7 +2,7 @@
 
 **Fusing Evidence Across Static Analysis Tools for CWE-Specific Vulnerability Detection**
 
-Multi-language vulnerability dataset pipeline. Collects, normalises, and synthesises labelled code samples from 24 public sources across C/C++, Java, and Python, each annotated with CWE IDs from the MITRE catalogue.
+Multi-language vulnerability dataset pipeline. Collects, normalises, and synthesises labelled code samples from 24 public sources across C/C++, Java, and Python, each annotated with CWE IDs from the MITRE catalogue. Then runs a full fusion experiment that calibrates per-tool reliability and compares every fusion strategy under cross-validation.
 
 ---
 
@@ -21,14 +21,15 @@ Stage 2  Synthesis        02_synthesis.ipynb | main.py synthesize
 Stage 3  Materialization  03_materialize.ipynb | main.py materialize
            Write source files          ->  data/materialized/
 
-Stage 4  Tool enrichment    main.py enrich
+Stage 4  Tool enrichment  main.py enrich
            Collapse SAT JSON reports + merged parquets  ->  data/enriched/<lang>.parquet
 
-Stage 5  Per-CWE metric computation (planned)
-Stage 6  DST fusion                 (planned)
-```
+Stage 5  Fusion           main.py fusion
+           Calibrate reliability + compare fusion strategies  ->  data/results/<lang>/
 
-Stages 0–4 are implemented. Stages 5–6 are planned.
+Stage 5b Diagnostics      main.py diagnose
+           Tool-complementarity analysis (oracle/diversity/CV)  ->  data/results/<lang>/diagnostics/
+```
 
 ---
 
@@ -37,11 +38,30 @@ Stages 0–4 are implemented. Stages 5–6 are planned.
 ```
 FEAST/
 ├── main.py                          # CLI (see Usage below)
-├── ingestion/                       # extraction library
+├── ingestion/                       # Stage 0–4 extraction library
 │   ├── schema.py                    # FunctionSample dataclass
 │   ├── cwe_navigator.py             # MITRE CWE XML parser and tree walker
 │   ├── utils.py                     # shared helpers (CWE regex, NVD placeholders)
 │   └── <source>.py                  # one extractor module per dataset
+├── analysis/                        # Stage 5 fusion analysis library
+│   ├── experiment.py                # end-to-end pipeline: canonicalise → fold → fuse → report
+│   ├── calibration.py               # per-(tool, family) reliability metrics
+│   ├── canonical.py                 # CWE → canonical family mapping (primary-path rule)
+│   ├── folds.py                     # multilabel-stratified k-fold splitting
+│   ├── aggregation.py               # fold-mean + support-weighted family aggregation
+│   ├── complementarity.py           # oracle/diversity/CV tool-complementarity diagnostics
+│   ├── reporting.py                 # CSV + plot writers
+│   └── fusion/
+│       ├── common.py                # shared plumbing (fire index, evidence_row, FUSER_ORDER)
+│       ├── baselines.py             # single-tool + OR-of-N baselines
+│       ├── traditional.py           # K-of-N voting
+│       ├── weighted.py              # reliability-weighted voting (PPV/NPV, spec/sens, FPR/FNR)
+│       ├── dst.py                   # Dempster-Shafer (Dempster, PCR6, Yager)
+│       ├── bayes.py                 # naive Bayes over log-likelihood ratios
+│       ├── bks.py                   # Behavior-Knowledge Space (empirical pattern lookup)
+│       ├── logistic.py              # per-family logistic regression (+ pairwise interactions)
+│       ├── ml.py                    # Decision Tree, Random Forest, Gradient Boosting
+│       └── predictions.py           # evaluation helpers and tau-variant expansion
 ├── notebooks/
 │   ├── 00_download_datasets.ipynb   # Stage 0 – download
 │   ├── 01_c_cpp.ipynb               # Stage 1 – C/C++ statistics
@@ -68,12 +88,24 @@ FEAST/
 │   │   ├── java/
 │   │   └── python/
 │   ├── SAT-reports/                 # static-analysis JSON reports
-│   └── enriched/                    # per-language merged samples + per-tool CWE columns
+│   ├── enriched/                    # per-language merged samples + per-tool CWE columns
+│   └── results/                     # fusion experiment outputs
+│       └── <lang>/pillar_child/
+│           ├── config.json          # experiment parameters
+│           ├── canonical_map.csv    # raw CWE -> canonical family
+│           ├── folds.csv            # per-row fold assignment
+│           ├── calibration_reliability.csv  # per-(tool,family,fold) reliability metrics
+│           ├── fusion_metrics_per_family.csv  # per-(strategy,family) metrics (mean over folds)
+│           ├── fusion_metrics_overall.csv     # support-weighted aggregate per strategy
+│           ├── fusion_detection_overall.csv   # vuln/safe detection metrics per strategy
+│           ├── fusion_tau_sweep.csv           # all (strategy, tau) combinations
+│           ├── fusion_operating_points.csv    # best-MCC tau per strategy
+│           └── plots/               # per-metric and per-family plots
 ├── outputs/
 │   ├── stage1_c_cpp_stats.xlsx
 │   ├── stage1_java_stats.xlsx
 │   └── stage1_python_stats.xlsx
-├── tests/ingestion/                 # unit tests for all extractors
+├── tests/                           # unit tests
 └── pyproject.toml
 ```
 
@@ -373,5 +405,125 @@ uv run python main.py enrich
 
 # custom output directory
 uv run python main.py enrich --out-dir data/enriched_experiment
+```
+
+### `fusion` — calibrate reliability and compare fusion strategies (Stage 5)
+
+```bash
+uv run python main.py fusion [OPTIONS]
+# aliases: fuse, f, analyze
+```
+
+Canonicalises CWE IDs to the direct children of CWE-1000 pillars (primary-path rule), calibrates per-(tool, family) reliability with exact matching, and runs every fusion strategy under stratified k-fold cross-validation. Results are written to `data/results/<lang>/pillar_child/`.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--lang LANG` | `all` | Language: `c`, `java`, `python`, or `all` |
+| `--exclude TOOL1,...` | none | Comma-separated tools to drop from the ensemble |
+| `--n-splits N` | `5` | Number of cross-validation folds |
+| `--tier TIER` | `base` | Analysis tier (see below) |
+| `--min-cwe-count M` | set by `--tier` | Override the tier's family support floor |
+| `--threshold K` | `2` | K for the traditional K-of-N voting baseline |
+| `--calibration M1,...` | all pairs | Calibration metric pairs to include: `ppv`, `npv`, `sensitivity`, `specificity`, `fpr`, `fnr` |
+| `--taumin T` | `0.1` | Lower bound of the τ sweep grid |
+| `--taumax T` | `0.9` | Upper bound of the τ sweep grid |
+| `--seed S` | `42` | Random seed for fold assignment |
+
+#### Analysis tiers
+
+The `--tier` flag controls two things simultaneously: the minimum number of ground-truth occurrences required to include a CWE family, and which ML-based strategies are activated.
+
+| Tier | Family support floor | ML strategies added | Use when |
+|------|---------------------|---------------------|----------|
+| `base` | ≥ n\_splits (default 5) | none | Maximum CWE coverage; existing strategies only |
+| `medium` | ≥ 30 | Decision Tree | Balanced coverage + one ML baseline |
+| `full` | ≥ 100 | Decision Tree + Random Forest + Gradient Boosting | Highest-confidence families only; full ML comparison |
+
+The ML classifiers use tool fire indicators (one binary feature per tool) as input and are trained on the calibration split of each fold. Class imbalance is handled via `class_weight='balanced'` (DT, RF) or inverse-frequency sample weights (GB), replacing SMOTE which is inapplicable on binary feature spaces. Hyperparameters are adapted from D'Abruzzo Pereira et al. (2024) to the 4-binary-feature regime of FEAST (see `analysis/fusion/ml.py`).
+
+`--min-cwe-count` overrides the tier's support floor if you need a custom threshold. The tier still determines which ML strategies are included.
+
+**Outputs** written to `data/results/<lang>/pillar_child/`:
+
+| File | Description |
+|------|-------------|
+| `config.json` | All experiment parameters |
+| `canonical_map.csv` | Raw CWE → canonical family mapping |
+| `folds.csv` | Per-row fold assignment |
+| `calibration_reliability.csv` | Per-(tool, family, fold): TP/FP/TN/FN, PPV, NPV, FPR, FNR, sensitivity, specificity |
+| `fusion_metrics_per_family.csv` | Per-(strategy, family): precision, recall, F1, F2, MCC, ROC-AUC (mean over folds) |
+| `fusion_metrics_overall.csv` | Support-weighted aggregate per strategy |
+| `fusion_detection_overall.csv` | Vuln/safe binary detection metrics per strategy |
+| `fusion_tau_sweep.csv` | All (base\_strategy, τ) combinations |
+| `fusion_operating_points.csv` | Best-MCC τ per strategy |
+| `plots/` | Per-metric bar charts and per-family performance plots |
+
+**Fusion strategies** included in every tier:
+
+| Strategy | Type |
+|----------|------|
+| `tool:<name>` | Single-tool baseline (one per tool) |
+| `or_1_of_N` | OR of all tools |
+| `traditional_K_of_N` | K-of-N majority vote |
+| `weighted_fire_<fire>_silence_<silence>` | Reliability-weighted voting (3 metric pairs) |
+| `dst_<rule>_fire_<fire>_silence_<silence>` | Dempster-Shafer (Dempster, PCR6, Yager × 3 pairs) |
+| `naive_bayes` | Naive Bayes over log-likelihood ratios |
+| `bks` | Behavior-Knowledge Space (empirical pattern lookup) |
+| `logistic_regression` | Per-family logistic regression on fire indicators |
+| `logistic_interactions` | Same + pairwise tool-interaction features |
+
+**Examples:**
+
+```bash
+# base tier: all CWE families, existing strategies
+uv run python main.py fusion --lang python
+
+# medium tier: families with ≥ 30 samples, adds Decision Tree
+uv run python main.py fusion --lang python --tier medium
+
+# full tier: families with ≥ 100 samples, adds DT + RF + GB
+uv run python main.py fusion --lang python --tier full
+
+# full tier, all languages
+uv run python main.py fusion --tier full
+
+# exclude one tool
+uv run python main.py fusion --lang python --exclude pylint
+
+# custom min-cwe-count (overrides the tier floor)
+uv run python main.py fusion --lang python --tier full --min-cwe-count 50
+
+# restrict calibration metrics
+uv run python main.py fusion --lang python --calibration ppv,npv
+```
+
+### `diagnose` — tool-complementarity diagnostics (Stage 5b)
+
+```bash
+uv run python main.py diagnose [OPTIONS]
+# alias: diag
+```
+
+Runs tool-complementarity diagnostics on the same canonicalised data used by `fusion`: oracle/coverage headroom, error diversity, per-(tool, family) reliability heatmap, and cross-validated marginal contribution and conditional value per tool. Outputs are written to `data/results/<lang>/pillar_child/diagnostics/`.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--lang LANG` | `all` | Language: `c`, `java`, `python`, or `all` |
+| `--exclude TOOL1,...` | none | Comma-separated tools to exclude |
+| `--n-splits N` | `5` | Number of cross-validation folds |
+| `--min-cwe-count M` | `= n_splits` | Min GT occurrences per family |
+| `--seed S` | `42` | Random seed |
+
+**Examples:**
+
+```bash
+# diagnostics for all languages
+uv run python main.py diagnose
+
+# Python only
+uv run python main.py diagnose --lang python
+
+# exclude a tool before computing marginal contributions
+uv run python main.py diagnose --lang python --exclude devaic
 ```
 

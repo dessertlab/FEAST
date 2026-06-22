@@ -99,6 +99,7 @@ FUSER_ORDER = (
     ),
     "naive_bayes", "bks",
     "logistic_regression", "logistic_interactions",
+    "decision_tree", "random_forest", "gradient_boosting",
 )
 
 
