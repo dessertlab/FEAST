@@ -1354,6 +1354,14 @@ def cmd_fusion(args) -> None:
     )
 
 
+def cmd_plots(args) -> None:
+    """Regenerate plots and CI report from existing fusion result CSVs."""
+    from analysis.experiment import regenerate_plots_all
+
+    languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
+    regenerate_plots_all(languages=languages, results_root=args.results_dir)
+
+
 def cmd_diagnose(args) -> None:
     """Stage 5b: tool-complementarity diagnostics downstream of canonicalisation.
 
@@ -1551,6 +1559,20 @@ examples:
     dia.add_argument('--seed', type=int, default=42, metavar='S',
                      help='Random seed for fold assignment  [default: 42]')
 
+    # ── plots ──────────────────────────────────────────────────────────────────
+    plt_p = sub.add_parser(
+        'plots', aliases=['replot', 'plot'],
+        help='Regenerate plots and CI report from existing fusion results  ->  results/.../plots/',
+    )
+    plt_p.add_argument(
+        '--lang', default='all', metavar='LANG',
+        help='Language: c, java, python, all  [default: all]',
+    )
+    plt_p.add_argument(
+        '--results-dir', type=Path, default=RESULTS_DIR, metavar='DIR', dest='results_dir',
+        help=f'Root results directory  [default: {RESULTS_DIR}]',
+    )
+
     # ── list ───────────────────────────────────────────────────────────────────
     sub.add_parser('list', aliases=['ls'], help='Show all available source datasets')
 
@@ -1580,6 +1602,8 @@ def main() -> None:
             cmd_fusion(args)
         case 'diagnose' | 'diag':
             cmd_diagnose(args)
+        case 'plots' | 'replot' | 'plot':
+            cmd_plots(args)
         case 'list' | 'ls':
             cmd_list(args)
 

@@ -1,9 +1,20 @@
 """Paired 95% confidence intervals for fusion-strategy mean differences.
 
-The input is the per-family table produced by ``analysis.aggregation.mean_over_folds``:
-one row per ``(strategy, family)`` with metrics already averaged across CV folds. For
-each fusion strategy, this module compares the family-level metric values against the
-traditional K-of-N baseline, computes the paired mean difference and writes a forest plot.
+Two pairing modes are supported:
+
+* **fold** (default, recommended): for each strategy the K-fold cross-validation gives K
+  independent support-weighted aggregate values (one per fold).  The CI is on the K
+  paired differences ``strategy_fold_k - baseline_fold_k``.  This aligns with the
+  "overall (support-weighted across families)" headline table: the metric being compared
+  is the same support-weighted quantity, and the fold is the natural replication unit.
+  Requires ``per_family_per_fold`` (the raw fold-level data saved as
+  ``fusion_metrics_per_family_per_fold.csv``).
+
+* **family** (legacy): pairs across CWE families using fold-averaged metrics.  N equals
+  the number of families; each observation is ``metric(strategy, family) -
+  metric(baseline, family)`` with no support weighting applied to the pairing.  This
+  treats rare and common families as equally informative, which disagrees with the
+  support-weighted headline table.
 """
 
 from __future__ import annotations
@@ -15,7 +26,7 @@ from typing import Iterable, Sequence
 
 import pandas as pd
 
-from analysis.aggregation import REPORT_METRICS
+from analysis.aggregation import REPORT_METRICS, SUPPORT_COLUMN
 from analysis.fusion.common import FUSER_ORDER, canonical_strategy_order, split_tau_strategy
 
 LOWER_IS_BETTER = {"fpr", "fnr"}
@@ -91,6 +102,74 @@ def _fusion_strategies(present: Iterable[str]) -> list[str]:
     return strategies
 
 
+def _fold_weighted_series(
+    per_family_per_fold: pd.DataFrame,
+    strategy: str,
+    metric: str,
+) -> pd.Series:
+    """Support-weighted metric per fold for one strategy (indexed by fold value)."""
+    sub = per_family_per_fold[per_family_per_fold["strategy"] == strategy]
+    result: dict = {}
+    for fold, group in sub.groupby("fold"):
+        values = pd.to_numeric(group[metric], errors="coerce")
+        weights = pd.to_numeric(group[SUPPORT_COLUMN], errors="coerce")
+        mask = values.notna() & weights.notna() & (weights > 0)
+        total = float(weights[mask].sum())
+        result[fold] = float((values[mask] * weights[mask]).sum() / total) if total > 0 else float("nan")
+    return pd.Series(result)
+
+
+def _paired_difference_folds(
+    per_family_per_fold: pd.DataFrame,
+    strategy: str,
+    baseline: str,
+    metric: str,
+) -> pd.Series:
+    """Fold-level paired differences: support-weighted(strategy) - support-weighted(baseline)."""
+    strat = _fold_weighted_series(per_family_per_fold, strategy, metric)
+    base = _fold_weighted_series(per_family_per_fold, baseline, metric)
+    common = strat.index.intersection(base.index)
+    return (strat[common] - base[common]).dropna().reset_index(drop=True)
+
+
+def _best_tau_per_strategy(
+    per_family: pd.DataFrame,
+    strategies: list[str],
+    metric: str,
+) -> list[str]:
+    """For each base strategy keep only the tau variant with the best mean metric.
+
+    Strategies without a tau suffix are passed through unchanged.  When all
+    variants of a base strategy have NaN for the metric the first variant is
+    kept as a fallback so the base strategy still appears in the plot.
+    """
+    ascending = metric in LOWER_IS_BETTER
+    groups: dict[str, list[str]] = {}
+    for s in strategies:
+        base, _tau = split_tau_strategy(s)
+        groups.setdefault(base, []).append(s)
+
+    selected: list[str] = []
+    for _base, variants in groups.items():
+        if len(variants) == 1:
+            selected.append(variants[0])
+            continue
+        scores: dict[str, float] = {}
+        for v in variants:
+            vals = pd.to_numeric(
+                per_family.loc[per_family["strategy"] == v, metric],
+                errors="coerce",
+            )
+            scores[v] = float(vals.mean()) if vals.notna().any() else float("nan")
+        valid = {v: s for v, s in scores.items() if not pd.isna(s)}
+        if not valid:
+            selected.append(variants[0])
+        else:
+            best = min(valid, key=lambda v: valid[v] if ascending else -valid[v])
+            selected.append(best)
+    return selected
+
+
 def _paired_difference(
     per_family: pd.DataFrame,
     strategy: str,
@@ -127,12 +206,24 @@ def mean_difference_ci(
     metric: str = "f1",
     baselines: Sequence[str] = DEFAULT_BASELINES,
     tools: Sequence[str] = (),
+    best_tau_only: bool = True,
+    per_family_per_fold: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Compute paired 95% CIs for each fusion strategy against each baseline.
 
     ``difference`` is always ``strategy metric - baseline metric``. The ``status`` column
     accounts for metric direction, so lower-is-better metrics treat negative intervals as
     improvements.
+
+    ``per_family_per_fold``: when provided, the CI is computed on K fold-level paired
+    differences of the support-weighted metric (N = K folds).  This matches the
+    "overall (support-weighted across families)" headline table.  When None, falls back
+    to pairing across CWE families using the fold-averaged ``per_family`` table (N =
+    number of families) — legacy behaviour.
+
+    ``best_tau_only``: when True (default) each base strategy contributes only its
+    best-mean-metric tau variant.  Tau selection always uses ``per_family`` (fold-averaged
+    per-family values) regardless of the pairing mode.
     """
     required = {"strategy", "family", metric}
     missing = required - set(per_family.columns)
@@ -143,12 +234,20 @@ def mean_difference_ci(
 
     present = set(per_family["strategy"].astype(str))
     resolved = [(name, _resolve_baseline(present, name)) for name in baselines]
-    strategies = canonical_strategy_order(tools, _fusion_strategies(present))
+    all_fusion = canonical_strategy_order(tools, _fusion_strategies(present))
+    strategies = (
+        _best_tau_per_strategy(per_family, all_fusion, metric) if best_tau_only else all_fusion
+    )
+    strategies = canonical_strategy_order(tools, strategies)
 
     rows: list[dict] = []
     for baseline_name, baseline_strategy in resolved:
         for strategy in strategies:
-            diffs = _paired_difference(per_family, strategy, baseline_strategy, metric)
+            diffs = (
+                _paired_difference_folds(per_family_per_fold, strategy, baseline_strategy, metric)
+                if per_family_per_fold is not None
+                else _paired_difference(per_family, strategy, baseline_strategy, metric)
+            )
             n = int(len(diffs))
             mean = float(diffs.mean()) if n else float("nan")
             if n <= 1:
@@ -159,12 +258,14 @@ def mean_difference_ci(
                 margin = _t_critical_975(n - 1) * se
                 ci_low = mean - margin
                 ci_high = mean + margin
+            pairing = "fold" if per_family_per_fold is not None else "family"
             rows.append({
                 "baseline": baseline_name,
                 "baseline_strategy": baseline_strategy,
                 "strategy": strategy,
                 "metric": metric,
-                "n_families": n,
+                "pairing": pairing,
+                "n_pairs": n,
                 "mean_difference": mean,
                 "std_difference": std,
                 "standard_error": se,
@@ -315,10 +416,15 @@ def save_mean_difference_ci_report(
     baselines: Sequence[str] = DEFAULT_BASELINES,
     tools: Sequence[str] = (),
     stem: str | None = None,
+    best_tau_only: bool = True,
+    per_family_per_fold: pd.DataFrame | None = None,
 ) -> tuple[pd.DataFrame, list[Path]]:
     """Compute intervals, write the CSV, and save the SVG/PNG forest plot."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    intervals = mean_difference_ci(per_family, metric=metric, baselines=baselines, tools=tools)
+    intervals = mean_difference_ci(
+        per_family, metric=metric, baselines=baselines, tools=tools,
+        best_tau_only=best_tau_only, per_family_per_fold=per_family_per_fold,
+    )
     name = stem or f"mean_difference_ci_{metric}"
     csv_path = out_dir / f"{name}.csv"
     intervals.to_csv(csv_path, index=False)

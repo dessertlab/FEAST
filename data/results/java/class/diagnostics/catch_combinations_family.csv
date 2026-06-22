@@ -1,7 +1,0 @@
-tools,n_tools,count
-∅ (missed),0,5645
-codeql+semgrep,2,984
-semgrep,1,617
-codeql,1,307
-joern+semgrep,2,13
-codeql+joern+semgrep,3,9

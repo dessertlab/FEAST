@@ -138,6 +138,33 @@ def prepare_canonical(
     return CanonicalPrep(language, level, df, cdf, tools, families, folds, restriction, canonical_map, support)
 
 
+def _build_operating_points(
+    tau_overall: pd.DataFrame,
+    detection_overall: pd.DataFrame,
+) -> pd.DataFrame:
+    """Best-MCC τ per fuser strategy, plus baseline rows (traditional / OR) appended.
+
+    Baselines have no τ sweep so they're taken directly from detection_overall with
+    tau=NaN and base_strategy equal to the strategy name itself.
+    """
+    fuser_pts = (
+        tau_overall.sort_values("mcc", ascending=False, na_position="last")
+        .groupby("base_strategy", as_index=False)
+        .first()
+        if not tau_overall.empty else tau_overall.iloc[0:0].copy()
+    )
+
+    baseline_mask = detection_overall["strategy"].str.match(
+        r"^(or_1_of_|traditional_)"
+    )
+    baselines = detection_overall[baseline_mask].copy()
+    if not baselines.empty:
+        baselines.insert(1, "base_strategy", baselines["strategy"])
+        baselines.insert(2, "tau", float("nan"))
+
+    return pd.concat([fuser_pts, baselines], ignore_index=True)
+
+
 def run_language_level(
     language: str,
     level: str,
@@ -218,12 +245,7 @@ def run_language_level(
     # The tau sweep is already materialised as explicit strategy names. These two
     # compatibility reports parse those names back into (base_strategy, tau).
     tau_overall = tau_variant_table(detection_overall)
-    operating_points = (
-        tau_overall.sort_values("mcc", ascending=False, na_position="last")
-        .groupby("base_strategy", as_index=False)
-        .first()
-        if not tau_overall.empty else tau_overall
-    )
+    operating_points = _build_operating_points(tau_overall, detection_overall)
 
     # Fixed strategy order everywhere: single tools → OR → traditional → fusers.
     per_family_mean = order_by_strategy(per_family_mean, tools, extra_sort=["family"])
@@ -242,6 +264,7 @@ def run_language_level(
     save_csv(canonical_map, results_dir / "canonical_map.csv")
     save_csv(folds, results_dir / "folds.csv")
     save_csv(pd.concat(reliability_frames, ignore_index=True), results_dir / "calibration_reliability.csv")
+    save_csv(per_family_per_fold, results_dir / "fusion_metrics_per_family_per_fold.csv")
     save_csv(per_family_mean, results_dir / "fusion_metrics_per_family.csv")
     save_csv(overall, results_dir / "fusion_metrics_overall.csv")
     save_csv(detection_overall, results_dir / "fusion_detection_overall.csv")
@@ -250,7 +273,10 @@ def run_language_level(
     save_strategy_plots(overall, results_dir / "plots")
     save_best_variant_plots(overall, results_dir / "plots" / "best_variants")
     save_family_performance_plots(per_family_mean, overall, results_dir / "plots" / "top_cwe_families", tools=tools)
-    save_mean_difference_ci_report(per_family_mean, results_dir / "plots", metric="f1", tools=tools)
+    save_mean_difference_ci_report(
+        per_family_mean, results_dir / "plots", metric="f1", tools=tools,
+        per_family_per_fold=per_family_per_fold,
+    )
 
     _print_overall(language, level, overall, detection_overall)
     if not operating_points.empty:
@@ -278,6 +304,82 @@ def run(
         except FileNotFoundError as exc:
             console.print(f"[yellow]{lang}/{level}: {exc}[/yellow]")
     return summaries
+
+
+def regenerate_plots(
+    language: str,
+    level: str,
+    *,
+    results_root: str | Path = "data/results",
+) -> bool:
+    """Regenerate all plots and tables for one (language, level) from existing CSVs.
+
+    Reads the CSV files written by ``run_language_level`` and re-runs the plotting
+    and CI steps without touching the enriched data or re-running fusion.  Returns
+    True if the results directory was found and plots were written, False otherwise.
+    """
+    results_dir = Path(results_root) / language / level
+    config_path = results_dir / "config.json"
+    overall_path = results_dir / "fusion_metrics_overall.csv"
+    per_family_path = results_dir / "fusion_metrics_per_family.csv"
+    per_family_per_fold_path = results_dir / "fusion_metrics_per_family_per_fold.csv"
+    detection_path = results_dir / "fusion_detection_overall.csv"
+    tau_path = results_dir / "fusion_tau_sweep.csv"
+
+    missing = [p for p in (config_path, overall_path, per_family_path, detection_path) if not p.exists()]
+    if missing:
+        console.print(f"[red]{language}/{level}: missing files — run 'fusion' first:[/red]")
+        for p in missing:
+            console.print(f"  [red]{p}[/red]")
+        return False
+
+    import json
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    tools: list[str] = config.get("tools", [])
+
+    overall = pd.read_csv(overall_path)
+    per_family_mean = pd.read_csv(per_family_path)
+    detection_overall = pd.read_csv(detection_path)
+    per_family_per_fold = (
+        pd.read_csv(per_family_per_fold_path) if per_family_per_fold_path.exists() else None
+    )
+
+    console.print(f"[bold]Regenerating plots[/bold]  {language}/{level}  ({len(overall)} strategies)")
+
+    save_strategy_plots(overall, results_dir / "plots")
+    save_best_variant_plots(overall, results_dir / "plots" / "best_variants")
+    save_family_performance_plots(per_family_mean, overall, results_dir / "plots" / "top_cwe_families", tools=tools)
+    save_mean_difference_ci_report(
+        per_family_mean, results_dir / "plots", metric="f1", tools=tools,
+        per_family_per_fold=per_family_per_fold,
+    )
+
+    tau_overall = tau_variant_table(detection_overall) if tau_path.exists() else pd.DataFrame()
+    operating_points = _build_operating_points(tau_overall, detection_overall)
+    operating_points = order_by_strategy(operating_points, tools)
+    if not operating_points.empty:
+        _print_operating_points(language, level, operating_points)
+
+    console.print(f"[green]Done →[/green] {results_dir / 'plots'}")
+    return True
+
+
+def regenerate_plots_all(
+    language: str = "all",
+    level: str = "pillar_child",
+    *,
+    languages: list[str] | None = None,
+    results_root: str | Path = "data/results",
+) -> list[bool]:
+    """Regenerate plots for one or all languages."""
+    from analysis.canonical import CANONICAL_LEVEL
+
+    if level in {"all", None}:
+        level = CANONICAL_LEVEL
+    langs = languages if languages is not None else (
+        [language] if language != "all" else ["c_cpp", "java", "python"]
+    )
+    return [regenerate_plots(lang, level, results_root=results_root) for lang in langs]
 
 
 # ── console output ──────────────────────────────────────────────────────────
@@ -323,16 +425,21 @@ def _print_overall(language: str, level: str, overall: pd.DataFrame, detection: 
 
 
 def _print_operating_points(language: str, level: str, operating_points: pd.DataFrame) -> None:
-    """Best-MCC operating point per strategy from the discrete τ sweep (honest metric:
-    MCC, since F2 on a positive-majority detection set rewards trivial always-vulnerable)."""
+    """Best-MCC operating point per fuser strategy + baseline rows (traditional, OR).
+
+    Fuser strategies show their best-MCC explicit τ; baselines have no τ sweep so τ
+    is shown as '—'.
+    """
     table = Table(title=f"{language} · {level} · detection @ best-MCC explicit τ")
     table.add_column("strategy", style="cyan", no_wrap=True)
-    for col in ("tau", "precision", "recall", "f2", "mcc", "roc_auc"):
+    for col in ("tau", "precision", "recall", "f1", "f2", "accuracy", "mcc", "roc_auc"):
         table.add_column(col, justify="right")
     for _i, r in operating_points.iterrows():
+        tau_val = r.get("tau")
+        tau_str = "—" if tau_val is None or pd.isna(tau_val) else f"{float(tau_val):.1f}"
         table.add_row(
             str(r["base_strategy"] if "base_strategy" in r else r["strategy"]),
-            f"{r['tau']:.1f}",
-            *["—" if pd.isna(r.get(m)) else f"{r[m]:.3f}" for m in ("precision", "recall", "f2", "mcc", "roc_auc")],
+            tau_str,
+            *["—" if pd.isna(r.get(m)) else f"{r[m]:.3f}" for m in ("precision", "recall", "f1", "f2", "accuracy", "mcc", "roc_auc")],
         )
     console.print(table)

@@ -39,9 +39,8 @@ data/*
 data/raw/*
 
 # Keep only these
-!data/SAT-reports/
 !data/raw/copilot-cwe-scenarios-dataset.zip
-!data/results/*/plots/
+!data/results/
 
 # Superpowers internal docs (planning artifacts, not repo content)
 docs/superpowers/
