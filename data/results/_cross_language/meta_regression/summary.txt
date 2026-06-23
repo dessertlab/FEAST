@@ -1,0 +1,3 @@
+stacked observations: 390 over 3 languages, 40 families
+
+Mixed model skipped: fit_mixed needs statsmodels — add it (already in pyproject) and run `uv sync`.
