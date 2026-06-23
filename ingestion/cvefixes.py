@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 from ingestion.schema import FunctionSample
-from ingestion.utils import _NVD_PLACEHOLDERS, _CWE_RE
+from ingestion.utils import _NVD_PLACEHOLDERS, _CWE_RE, EXCLUDED_SAMPLE_IDS, code_sample_id
 
 _SUPPORTED_LANGUAGES = {"C", "C++", "Java", "Python"}
 
@@ -52,6 +52,11 @@ def extract_cvefixes(data_path: Path, language: str = "C") -> list[FunctionSampl
     hash_counts = Counter(df["hash"])
     single_hashes = {h for h, n in hash_counts.items() if n == 1}
     df = df[df["hash"].isin(single_hashes)]
+
+    # Drop samples on the global exclusion list (e.g. code that hangs SAT tools).
+    if EXCLUDED_SAMPLE_IDS:
+        excluded = df["vulnerable_code"].map(code_sample_id).isin(EXCLUDED_SAMPLE_IDS)
+        df = df[~excluded].copy()
 
     # Normalise language label
     if language in ("C", "C++"):
