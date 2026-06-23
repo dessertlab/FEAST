@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="502" viewBox="0 0 960 502">
+<style>text{font-family:Arial,sans-serif;font-size:12px}.t{font-size:16px;font-weight:700}.ax{stroke:#888;stroke-width:1}.bar{fill:#3568a8}.v{fill:#222}</style>
+<text class="t" x="0" y="20">precision best variant per strategy (support-weighted)</text>
+<line class="ax" x1="367" y1="34" x2="367" y2="492"/>
+<text x="0" y="57">bks (tau=0.8)</text>
+<rect class="bar" x="367" y="42" width="438" height="19" rx="2"/>
+<text class="v" x="880" y="57">0.873</text>
+<text x="0" y="85">logistic_interactions (tau=0.9)</text>
+<rect class="bar" x="367" y="70" width="259" height="19" rx="2"/>
+<text class="v" x="880" y="85">0.516</text>
+<text x="0" y="113">naive_bayes (tau=0.9)</text>
+<rect class="bar" x="367" y="98" width="254" height="19" rx="2"/>
+<text class="v" x="880" y="113">0.505</text>
+<text x="0" y="141">logistic_regression (tau=0.8)</text>
+<rect class="bar" x="367" y="126" width="230" height="19" rx="2"/>
+<text class="v" x="880" y="141">0.458</text>
+<text x="0" y="169">decision_tree (tau=0.9)</text>
+<rect class="bar" x="367" y="154" width="226" height="19" rx="2"/>
+<text class="v" x="880" y="169">0.450</text>
+<text x="0" y="197">traditional_2_of_5</text>
+<rect class="bar" x="367" y="182" width="208" height="19" rx="2"/>
+<text class="v" x="880" y="197">0.414</text>
+<text x="0" y="225">tool:bandit</text>
+<rect class="bar" x="367" y="210" width="200" height="19" rx="2"/>
+<text class="v" x="880" y="225">0.398</text>
+<text x="0" y="253">tool:codeql</text>
+<rect class="bar" x="367" y="238" width="188" height="19" rx="2"/>
+<text class="v" x="880" y="253">0.374</text>
+<text x="0" y="281">weighted (tau=0.9, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="266" width="179" height="19" rx="2"/>
+<text class="v" x="880" y="281">0.356</text>
+<text x="0" y="309">dst_yager (tau=0.9, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="294" width="179" height="19" rx="2"/>
+<text class="v" x="880" y="309">0.356</text>
+<text x="0" y="337">or_1_of_5</text>
+<rect class="bar" x="367" y="322" width="155" height="19" rx="2"/>
+<text class="v" x="880" y="337">0.310</text>
+<text x="0" y="365">tool:semgrep</text>
+<rect class="bar" x="367" y="350" width="155" height="19" rx="2"/>
+<text class="v" x="880" y="365">0.309</text>
+<text x="0" y="393">dst_pcr6 (tau=0.9, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="378" width="151" height="19" rx="2"/>
+<text class="v" x="880" y="393">0.301</text>
+<text x="0" y="421">dst_dempster (tau=0.9, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="406" width="146" height="19" rx="2"/>
+<text class="v" x="880" y="421">0.292</text>
+<text x="0" y="449">tool:pylint</text>
+<rect class="bar" x="367" y="434" width="132" height="19" rx="2"/>
+<text class="v" x="880" y="449">0.264</text>
+<text x="0" y="477">tool:devaic</text>
+<text class="v" x="367" y="477">n/a</text>
+</svg>

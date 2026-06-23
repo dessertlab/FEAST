@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="418" viewBox="0 0 960 418">
+<style>text{font-family:Arial,sans-serif;font-size:12px}.t{font-size:16px;font-weight:700}.ax{stroke:#888;stroke-width:1}.bar{fill:#3568a8}.v{fill:#222}</style>
+<text class="t" x="0" y="20">specificity best variant per strategy (support-weighted)</text>
+<line class="ax" x1="367" y1="34" x2="367" y2="408"/>
+<text x="0" y="57">bks (tau=0.8)</text>
+<rect class="bar" x="367" y="42" width="502" height="19" rx="2"/>
+<text class="v" x="880" y="57">1.000</text>
+<text x="0" y="85">tool:joern</text>
+<rect class="bar" x="367" y="70" width="502" height="19" rx="2"/>
+<text class="v" x="880" y="85">1.000</text>
+<text x="0" y="113">naive_bayes (tau=0.9)</text>
+<rect class="bar" x="367" y="98" width="502" height="19" rx="2"/>
+<text class="v" x="880" y="113">1.000</text>
+<text x="0" y="141">logistic_regression (tau=0.9)</text>
+<rect class="bar" x="367" y="126" width="501" height="19" rx="2"/>
+<text class="v" x="880" y="141">0.996</text>
+<text x="0" y="169">traditional_2_of_3</text>
+<rect class="bar" x="367" y="154" width="498" height="19" rx="2"/>
+<text class="v" x="880" y="169">0.990</text>
+<text x="0" y="197">logistic_interactions (tau=0.9)</text>
+<rect class="bar" x="367" y="182" width="496" height="19" rx="2"/>
+<text class="v" x="880" y="197">0.987</text>
+<text x="0" y="225">tool:semgrep</text>
+<rect class="bar" x="367" y="210" width="492" height="19" rx="2"/>
+<text class="v" x="880" y="225">0.978</text>
+<text x="0" y="253">dst_yager (tau=0.9, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="238" width="486" height="19" rx="2"/>
+<text class="v" x="880" y="253">0.967</text>
+<text x="0" y="281">weighted (tau=0.9, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="266" width="486" height="19" rx="2"/>
+<text class="v" x="880" y="281">0.967</text>
+<text x="0" y="309">dst_pcr6 (tau=0.9, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="294" width="485" height="19" rx="2"/>
+<text class="v" x="880" y="309">0.966</text>
+<text x="0" y="337">dst_dempster (tau=0.9, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="322" width="485" height="19" rx="2"/>
+<text class="v" x="880" y="337">0.965</text>
+<text x="0" y="365">tool:codeql</text>
+<rect class="bar" x="367" y="350" width="477" height="19" rx="2"/>
+<text class="v" x="880" y="365">0.949</text>
+<text x="0" y="393">or_1_of_3</text>
+<rect class="bar" x="367" y="378" width="471" height="19" rx="2"/>
+<text class="v" x="880" y="393">0.937</text>
+</svg>

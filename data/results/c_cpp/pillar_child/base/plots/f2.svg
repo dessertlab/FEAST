@@ -1,0 +1,244 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="2294" viewBox="0 0 960 2294">
+<style>text{font-family:Arial,sans-serif;font-size:12px}.t{font-size:16px;font-weight:700}.ax{stroke:#888;stroke-width:1}.bar{fill:#3568a8}.v{fill:#222}</style>
+<text class="t" x="0" y="20">f2 (support-weighted)</text>
+<line class="ax" x1="409" y1="34" x2="409" y2="2284"/>
+<text x="0" y="57">bks_tau_0_2</text>
+<rect class="bar" x="409" y="42" width="138" height="19" rx="2"/>
+<text class="v" x="880" y="57">0.300</text>
+<text x="0" y="85">bks_tau_0_1</text>
+<rect class="bar" x="409" y="70" width="123" height="19" rx="2"/>
+<text class="v" x="880" y="85">0.268</text>
+<text x="0" y="113">naive_bayes_tau_0_1</text>
+<rect class="bar" x="409" y="98" width="121" height="19" rx="2"/>
+<text class="v" x="880" y="113">0.263</text>
+<text x="0" y="141">naive_bayes_tau_0_2</text>
+<rect class="bar" x="409" y="126" width="120" height="19" rx="2"/>
+<text class="v" x="880" y="141">0.261</text>
+<text x="0" y="169">tool:flawfinder</text>
+<rect class="bar" x="409" y="154" width="108" height="19" rx="2"/>
+<text class="v" x="880" y="169">0.235</text>
+<text x="0" y="197">logistic_interactions_tau_0_8</text>
+<rect class="bar" x="409" y="182" width="107" height="19" rx="2"/>
+<text class="v" x="880" y="197">0.234</text>
+<text x="0" y="225">logistic_interactions_tau_0_6</text>
+<rect class="bar" x="409" y="210" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="225">0.225</text>
+<text x="0" y="253">logistic_interactions_tau_0_7</text>
+<rect class="bar" x="409" y="238" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="253">0.225</text>
+<text x="0" y="281">logistic_regression_tau_0_6</text>
+<rect class="bar" x="409" y="266" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="281">0.225</text>
+<text x="0" y="309">logistic_regression_tau_0_7</text>
+<rect class="bar" x="409" y="294" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="309">0.224</text>
+<text x="0" y="337">logistic_regression_tau_0_8</text>
+<rect class="bar" x="409" y="322" width="103" height="19" rx="2"/>
+<text class="v" x="880" y="337">0.224</text>
+<text x="0" y="365">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="409" y="350" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="365">0.196</text>
+<text x="0" y="393">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="409" y="378" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="393">0.196</text>
+<text x="0" y="421">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="409" y="406" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="421">0.196</text>
+<text x="0" y="449">dst_yager_fire_specificity_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="409" y="434" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="449">0.196</text>
+<text x="0" y="477">dst_dempster_fire_specificity_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="409" y="462" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="477">0.196</text>
+<text x="0" y="505">dst_dempster_fire_specificity_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="409" y="490" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="505">0.196</text>
+<text x="0" y="533">dst_dempster_fire_specificity_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="409" y="518" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="533">0.196</text>
+<text x="0" y="561">dst_dempster_fire_specificity_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="409" y="546" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="561">0.196</text>
+<text x="0" y="589">dst_yager_fire_specificity_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="409" y="574" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="589">0.196</text>
+<text x="0" y="617">weighted_fire_specificity_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="409" y="602" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="617">0.196</text>
+<text x="0" y="645">weighted_fire_specificity_silence_sensitivity_tau_0_7</text>
+<rect class="bar" x="409" y="630" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="645">0.196</text>
+<text x="0" y="673">weighted_fire_specificity_silence_sensitivity_tau_0_6</text>
+<rect class="bar" x="409" y="658" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="673">0.196</text>
+<text x="0" y="701">weighted_fire_specificity_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="409" y="686" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="701">0.196</text>
+<text x="0" y="729">weighted_fire_specificity_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="409" y="714" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="729">0.196</text>
+<text x="0" y="757">weighted_fire_specificity_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="409" y="742" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="757">0.196</text>
+<text x="0" y="785">weighted_fire_specificity_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="409" y="770" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="785">0.196</text>
+<text x="0" y="813">dst_yager_fire_specificity_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="409" y="798" width="90" height="19" rx="2"/>
+<text class="v" x="880" y="813">0.196</text>
+<text x="0" y="841">or_1_of_6</text>
+<rect class="bar" x="409" y="826" width="89" height="19" rx="2"/>
+<text class="v" x="880" y="841">0.194</text>
+<text x="0" y="869">weighted_fire_specificity_silence_sensitivity_tau_0_8</text>
+<rect class="bar" x="409" y="854" width="88" height="19" rx="2"/>
+<text class="v" x="880" y="869">0.193</text>
+<text x="0" y="897">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="409" y="882" width="88" height="19" rx="2"/>
+<text class="v" x="880" y="897">0.193</text>
+<text x="0" y="925">weighted_fire_specificity_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="409" y="910" width="88" height="19" rx="2"/>
+<text class="v" x="880" y="925">0.192</text>
+<text x="0" y="953">dst_yager_fire_specificity_silence_sensitivity_tau_0_9</text>
+<rect class="bar" x="409" y="938" width="88" height="19" rx="2"/>
+<text class="v" x="880" y="953">0.192</text>
+<text x="0" y="981">logistic_interactions_tau_0_5</text>
+<rect class="bar" x="409" y="966" width="85" height="19" rx="2"/>
+<text class="v" x="880" y="981">0.186</text>
+<text x="0" y="1009">logistic_regression_tau_0_5</text>
+<rect class="bar" x="409" y="994" width="85" height="19" rx="2"/>
+<text class="v" x="880" y="1009">0.185</text>
+<text x="0" y="1037">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="409" y="1022" width="85" height="19" rx="2"/>
+<text class="v" x="880" y="1037">0.185</text>
+<text x="0" y="1065">dst_dempster_fire_specificity_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="409" y="1050" width="85" height="19" rx="2"/>
+<text class="v" x="880" y="1065">0.185</text>
+<text x="0" y="1093">dst_yager_fire_specificity_silence_sensitivity_tau_0_5</text>
+<rect class="bar" x="409" y="1078" width="85" height="19" rx="2"/>
+<text class="v" x="880" y="1093">0.185</text>
+<text x="0" y="1121">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="409" y="1106" width="82" height="19" rx="2"/>
+<text class="v" x="880" y="1121">0.179</text>
+<text x="0" y="1149">dst_yager_fire_specificity_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="409" y="1134" width="82" height="19" rx="2"/>
+<text class="v" x="880" y="1149">0.179</text>
+<text x="0" y="1177">dst_dempster_fire_specificity_silence_sensitivity_tau_0_4</text>
+<rect class="bar" x="409" y="1162" width="82" height="19" rx="2"/>
+<text class="v" x="880" y="1177">0.179</text>
+<text x="0" y="1205">logistic_interactions_tau_0_4</text>
+<rect class="bar" x="409" y="1190" width="74" height="19" rx="2"/>
+<text class="v" x="880" y="1205">0.163</text>
+<text x="0" y="1233">logistic_regression_tau_0_4</text>
+<rect class="bar" x="409" y="1218" width="74" height="19" rx="2"/>
+<text class="v" x="880" y="1233">0.163</text>
+<text x="0" y="1261">dst_yager_fire_specificity_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="409" y="1246" width="68" height="19" rx="2"/>
+<text class="v" x="880" y="1261">0.148</text>
+<text x="0" y="1289">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="409" y="1274" width="68" height="19" rx="2"/>
+<text class="v" x="880" y="1289">0.148</text>
+<text x="0" y="1317">dst_dempster_fire_specificity_silence_sensitivity_tau_0_3</text>
+<rect class="bar" x="409" y="1302" width="68" height="19" rx="2"/>
+<text class="v" x="880" y="1317">0.148</text>
+<text x="0" y="1345">dst_dempster_fire_specificity_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="409" y="1330" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1345">0.095</text>
+<text x="0" y="1373">dst_yager_fire_specificity_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="409" y="1358" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1373">0.095</text>
+<text x="0" y="1401">dst_yager_fire_specificity_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="409" y="1386" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1401">0.095</text>
+<text x="0" y="1429">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="409" y="1414" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1429">0.095</text>
+<text x="0" y="1457">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_1</text>
+<rect class="bar" x="409" y="1442" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1457">0.095</text>
+<text x="0" y="1485">dst_dempster_fire_specificity_silence_sensitivity_tau_0_2</text>
+<rect class="bar" x="409" y="1470" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1485">0.095</text>
+<text x="0" y="1513">logistic_interactions_tau_0_1</text>
+<rect class="bar" x="409" y="1498" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1513">0.095</text>
+<text x="0" y="1541">logistic_regression_tau_0_1</text>
+<rect class="bar" x="409" y="1526" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1541">0.095</text>
+<text x="0" y="1569">logistic_interactions_tau_0_2</text>
+<rect class="bar" x="409" y="1554" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1569">0.095</text>
+<text x="0" y="1597">logistic_regression_tau_0_2</text>
+<rect class="bar" x="409" y="1582" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1597">0.095</text>
+<text x="0" y="1625">logistic_interactions_tau_0_3</text>
+<rect class="bar" x="409" y="1610" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1625">0.095</text>
+<text x="0" y="1653">logistic_regression_tau_0_3</text>
+<rect class="bar" x="409" y="1638" width="43" height="19" rx="2"/>
+<text class="v" x="880" y="1653">0.095</text>
+<text x="0" y="1681">logistic_regression_tau_0_9</text>
+<rect class="bar" x="409" y="1666" width="24" height="19" rx="2"/>
+<text class="v" x="880" y="1681">0.053</text>
+<text x="0" y="1709">logistic_interactions_tau_0_9</text>
+<rect class="bar" x="409" y="1694" width="24" height="19" rx="2"/>
+<text class="v" x="880" y="1709">0.052</text>
+<text x="0" y="1737">naive_bayes_tau_0_3</text>
+<rect class="bar" x="409" y="1722" width="21" height="19" rx="2"/>
+<text class="v" x="880" y="1737">0.047</text>
+<text x="0" y="1765">bks_tau_0_3</text>
+<rect class="bar" x="409" y="1750" width="16" height="19" rx="2"/>
+<text class="v" x="880" y="1765">0.037</text>
+<text x="0" y="1793">naive_bayes_tau_0_5</text>
+<rect class="bar" x="409" y="1778" width="14" height="19" rx="2"/>
+<text class="v" x="880" y="1793">0.030</text>
+<text x="0" y="1821">naive_bayes_tau_0_4</text>
+<rect class="bar" x="409" y="1806" width="14" height="19" rx="2"/>
+<text class="v" x="880" y="1821">0.030</text>
+<text x="0" y="1849">naive_bayes_tau_0_6</text>
+<rect class="bar" x="409" y="1834" width="13" height="19" rx="2"/>
+<text class="v" x="880" y="1849">0.030</text>
+<text x="0" y="1877">traditional_2_of_6</text>
+<rect class="bar" x="409" y="1862" width="11" height="19" rx="2"/>
+<text class="v" x="880" y="1877">0.025</text>
+<text x="0" y="1905">naive_bayes_tau_0_7</text>
+<rect class="bar" x="409" y="1890" width="7" height="19" rx="2"/>
+<text class="v" x="880" y="1905">0.017</text>
+<text x="0" y="1933">tool:ikos</text>
+<rect class="bar" x="409" y="1918" width="7" height="19" rx="2"/>
+<text class="v" x="880" y="1933">0.017</text>
+<text x="0" y="1961">bks_tau_0_4</text>
+<rect class="bar" x="409" y="1946" width="6" height="19" rx="2"/>
+<text class="v" x="880" y="1961">0.014</text>
+<text x="0" y="1989">tool:joern</text>
+<rect class="bar" x="409" y="1974" width="6" height="19" rx="2"/>
+<text class="v" x="880" y="1989">0.014</text>
+<text x="0" y="2017">bks_tau_0_5</text>
+<rect class="bar" x="409" y="2002" width="6" height="19" rx="2"/>
+<text class="v" x="880" y="2017">0.013</text>
+<text x="0" y="2045">tool:codeql</text>
+<rect class="bar" x="409" y="2030" width="5" height="19" rx="2"/>
+<text class="v" x="880" y="2045">0.011</text>
+<text x="0" y="2073">bks_tau_0_6</text>
+<rect class="bar" x="409" y="2058" width="4" height="19" rx="2"/>
+<text class="v" x="880" y="2073">0.010</text>
+<text x="0" y="2101">tool:cppcheck</text>
+<rect class="bar" x="409" y="2086" width="4" height="19" rx="2"/>
+<text class="v" x="880" y="2101">0.009</text>
+<text x="0" y="2129">tool:semgrep</text>
+<rect class="bar" x="409" y="2114" width="4" height="19" rx="2"/>
+<text class="v" x="880" y="2129">0.009</text>
+<text x="0" y="2157">naive_bayes_tau_0_8</text>
+<rect class="bar" x="409" y="2142" width="3" height="19" rx="2"/>
+<text class="v" x="880" y="2157">0.008</text>
+<text x="0" y="2185">naive_bayes_tau_0_9</text>
+<rect class="bar" x="409" y="2170" width="3" height="19" rx="2"/>
+<text class="v" x="880" y="2185">0.008</text>
+<text x="0" y="2213">bks_tau_0_8</text>
+<rect class="bar" x="409" y="2198" width="3" height="19" rx="2"/>
+<text class="v" x="880" y="2213">0.007</text>
+<text x="0" y="2241">bks_tau_0_7</text>
+<rect class="bar" x="409" y="2226" width="2" height="19" rx="2"/>
+<text class="v" x="880" y="2241">0.004</text>
+<text x="0" y="2269">bks_tau_0_9</text>
+<text class="v" x="409" y="2269">n/a</text>
+</svg>

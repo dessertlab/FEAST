@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="418" viewBox="0 0 960 418">
+<style>text{font-family:Arial,sans-serif;font-size:12px}.t{font-size:16px;font-weight:700}.ax{stroke:#888;stroke-width:1}.bar{fill:#3568a8}.v{fill:#222}</style>
+<text class="t" x="0" y="20">roc_auc best variant per strategy (support-weighted)</text>
+<line class="ax" x1="367" y1="34" x2="367" y2="408"/>
+<text x="0" y="57">naive_bayes (tau=0.1)</text>
+<rect class="bar" x="367" y="42" width="315" height="19" rx="2"/>
+<text class="v" x="880" y="57">0.628</text>
+<text x="0" y="85">logistic_regression (tau=0.1)</text>
+<rect class="bar" x="367" y="70" width="315" height="19" rx="2"/>
+<text class="v" x="880" y="85">0.627</text>
+<text x="0" y="113">logistic_interactions (tau=0.1)</text>
+<rect class="bar" x="367" y="98" width="315" height="19" rx="2"/>
+<text class="v" x="880" y="113">0.627</text>
+<text x="0" y="141">bks (tau=0.1)</text>
+<rect class="bar" x="367" y="126" width="315" height="19" rx="2"/>
+<text class="v" x="880" y="141">0.627</text>
+<text x="0" y="169">weighted (tau=0.1, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="154" width="307" height="19" rx="2"/>
+<text class="v" x="880" y="169">0.611</text>
+<text x="0" y="197">dst_pcr6 (tau=0.1, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="182" width="307" height="19" rx="2"/>
+<text class="v" x="880" y="197">0.611</text>
+<text x="0" y="225">dst_yager (tau=0.1, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="210" width="307" height="19" rx="2"/>
+<text class="v" x="880" y="225">0.611</text>
+<text x="0" y="253">dst_dempster (tau=0.1, cal=specificity/sensitivity)</text>
+<rect class="bar" x="367" y="238" width="307" height="19" rx="2"/>
+<text class="v" x="880" y="253">0.611</text>
+<text x="0" y="281">traditional_2_of_3</text>
+<rect class="bar" x="367" y="266" width="306" height="19" rx="2"/>
+<text class="v" x="880" y="281">0.610</text>
+<text x="0" y="309">or_1_of_3</text>
+<rect class="bar" x="367" y="294" width="304" height="19" rx="2"/>
+<text class="v" x="880" y="309">0.605</text>
+<text x="0" y="337">tool:semgrep</text>
+<rect class="bar" x="367" y="322" width="302" height="19" rx="2"/>
+<text class="v" x="880" y="337">0.602</text>
+<text x="0" y="365">tool:codeql</text>
+<rect class="bar" x="367" y="350" width="287" height="19" rx="2"/>
+<text class="v" x="880" y="365">0.572</text>
+<text x="0" y="393">tool:joern</text>
+<rect class="bar" x="367" y="378" width="252" height="19" rx="2"/>
+<text class="v" x="880" y="393">0.501</text>
+</svg>
