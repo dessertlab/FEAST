@@ -1359,7 +1359,7 @@ def cmd_plots(args) -> None:
     from analysis.experiment import regenerate_plots_all
 
     languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
-    regenerate_plots_all(languages=languages, results_root=args.results_dir)
+    regenerate_plots_all(languages=languages, tier=args.tier, results_root=args.results_dir)
 
 
 def cmd_diagnose(args) -> None:
@@ -1385,6 +1385,83 @@ def cmd_diagnose(args) -> None:
             )
         except (FileNotFoundError, ValueError) as exc:
             console.print(f'[yellow]{language}/{CANONICAL_LEVEL}: {exc}[/yellow]')
+
+
+def cmd_scaling_coverage(args) -> None:
+    """Scaling analysis 1: cross-language tool-coverage comparison.
+
+    Lays each language's union (OR) recall and oracle headroom side by side against its
+    dataset-level covariates, to see whether the per-language performance gap tracks how
+    much the tool pool collectively detects. Writes data/results/_cross_language/coverage.csv.
+    """
+    from analysis.canonical import CANONICAL_LEVEL
+    from analysis.scaling.coverage_xlang import compare_coverage
+
+    languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
+    compare_coverage(
+        languages=languages, level=CANONICAL_LEVEL, tier=args.tier,
+        n_splits=args.n_splits, seed=args.seed,
+        enriched_dir=ENRICHED_DIR, results_root=RESULTS_DIR,
+    )
+
+
+def cmd_scaling_tools(args) -> None:
+    """Scaling analysis 2: vary the number of tools within each language.
+
+    Re-runs fusion on every tool subset of size k = 2..N (within a fixed language) and plots
+    fusion f1 against the tool count, breaking the language/n-tools collinearity. Writes
+    data/results/<language>/pillar_child/ablation/by_n_tools.csv.
+    """
+    from analysis.canonical import CANONICAL_LEVEL
+    from analysis.scaling.tool_ablation import ablate_tools
+
+    languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
+    sizes = [int(s) for s in args.sizes.split(',')] if args.sizes else None
+    for language in languages:
+        try:
+            ablate_tools(
+                language, level=CANONICAL_LEVEL, tier=args.tier, sizes=sizes,
+                max_combos=args.max_combos, n_splits=args.n_splits, threshold=args.threshold,
+                seed=args.seed, enriched_dir=ENRICHED_DIR, results_root=RESULTS_DIR,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            console.print(f'[yellow]{language}: {exc}[/yellow]')
+
+
+def cmd_scaling_data(args) -> None:
+    """Scaling analysis 3: dataset-size learning curve within each language.
+
+    Subsamples the enriched rows at a grid of fractions and re-runs fusion on each, to see
+    whether a language's advantage survives being shrunk to another's size. Writes
+    data/results/<language>/pillar_child/ablation/by_dataset_size.csv.
+    """
+    from analysis.canonical import CANONICAL_LEVEL
+    from analysis.scaling.data_ablation import ablate_dataset_size
+
+    languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
+    fractions = [float(f) for f in args.fractions.split(',')] if args.fractions else None
+    for language in languages:
+        try:
+            ablate_dataset_size(
+                language, level=CANONICAL_LEVEL, tier=args.tier, fractions=fractions,
+                repeats=args.repeats, n_splits=args.n_splits, threshold=args.threshold,
+                seed=args.seed, enriched_dir=ENRICHED_DIR, results_root=RESULTS_DIR,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            console.print(f'[yellow]{language}: {exc}[/yellow]')
+
+
+def cmd_scaling_meta(args) -> None:
+    """Scaling analysis 4: the cross-language meta-regression that ties the lenses together.
+
+    Stacks every (family, fold) fusion lift with its dataset-level covariates, fits a mixed
+    model (random intercept on family) plus within-language ablation regressions, and writes
+    data/results/_cross_language/meta_regression/.
+    """
+    from analysis.scaling.meta_regression import run_meta
+
+    languages = None if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
+    run_meta(languages=languages, tier=args.tier, results_root=RESULTS_DIR)
 
 
 # ── argument parser ────────────────────────────────────────────────────────────
@@ -1559,6 +1636,70 @@ examples:
     dia.add_argument('--seed', type=int, default=42, metavar='S',
                      help='Random seed for fold assignment  [default: 42]')
 
+    # ── scaling-coverage ───────────────────────────────────────────────────────
+    scov = sub.add_parser(
+        'scaling-coverage', aliases=['scov'],
+        help='Cross-language tool-coverage comparison  ->  results/_cross_language/coverage.csv',
+    )
+    scov.add_argument('--lang', default='all', metavar='LANG',
+                      help='Language: c, java, python, all  [default: all]')
+    scov.add_argument('--tier', choices=['base', 'medium', 'full'], default='base', metavar='TIER',
+                      help='Tier subdirectory to read covariates from  [default: base]')
+    scov.add_argument('--n-splits', type=int, default=5, metavar='N', dest='n_splits',
+                      help='Number of cross-validation folds  [default: 5]')
+    scov.add_argument('--seed', type=int, default=42, metavar='S',
+                      help='Random seed for fold assignment  [default: 42]')
+
+    # ── scaling-tools ──────────────────────────────────────────────────────────
+    stool = sub.add_parser(
+        'scaling-tools', aliases=['stools'],
+        help='Tool-count ablation within each language  ->  results/.../ablation/by_n_tools.csv',
+    )
+    stool.add_argument('--lang', default='all', metavar='LANG',
+                       help='Language: c, java, python, all  [default: all]')
+    stool.add_argument('--tier', choices=['base', 'medium', 'full'], default='base', metavar='TIER',
+                       help='Analysis tier  [default: base]')
+    stool.add_argument('--sizes', default=None, metavar='K1,K2,...',
+                       help='Subset sizes to evaluate  [default: 2..N]')
+    stool.add_argument('--max-combos', type=int, default=None, metavar='M', dest='max_combos',
+                       help='Cap combinations evaluated per size  [default: all]')
+    stool.add_argument('--n-splits', type=int, default=5, metavar='N', dest='n_splits',
+                       help='Number of cross-validation folds  [default: 5]')
+    stool.add_argument('--threshold', type=int, default=2, metavar='K',
+                       help='K for the traditional K-of-N voting baseline  [default: 2]')
+    stool.add_argument('--seed', type=int, default=42, metavar='S',
+                       help='Random seed  [default: 42]')
+
+    # ── scaling-data ───────────────────────────────────────────────────────────
+    sdata = sub.add_parser(
+        'scaling-data', aliases=['sdata'],
+        help='Dataset-size learning curve within each language  ->  results/.../ablation/by_dataset_size.csv',
+    )
+    sdata.add_argument('--lang', default='all', metavar='LANG',
+                       help='Language: c, java, python, all  [default: all]')
+    sdata.add_argument('--tier', choices=['base', 'medium', 'full'], default='base', metavar='TIER',
+                       help='Analysis tier  [default: base]')
+    sdata.add_argument('--fractions', default=None, metavar='F1,F2,...',
+                       help='Row fractions of the full set to evaluate  [default: 0.1,0.25,0.5,0.75,1.0]')
+    sdata.add_argument('--repeats', type=int, default=3, metavar='R',
+                       help='Subsamples per fraction (different sampling seeds)  [default: 3]')
+    sdata.add_argument('--n-splits', type=int, default=5, metavar='N', dest='n_splits',
+                       help='Number of cross-validation folds  [default: 5]')
+    sdata.add_argument('--threshold', type=int, default=2, metavar='K',
+                       help='K for the traditional K-of-N voting baseline  [default: 2]')
+    sdata.add_argument('--seed', type=int, default=42, metavar='S',
+                       help='Base random seed  [default: 42]')
+
+    # ── scaling-meta ───────────────────────────────────────────────────────────
+    smeta = sub.add_parser(
+        'scaling-meta', aliases=['smeta'],
+        help='Cross-language meta-regression  ->  results/_cross_language/meta_regression/',
+    )
+    smeta.add_argument('--lang', default='all', metavar='LANG',
+                       help='Languages to include: all, or a single slug  [default: all]')
+    smeta.add_argument('--tier', choices=['base', 'medium', 'full'], default='base', metavar='TIER',
+                       help='Tier subdirectory to read results from  [default: base]')
+
     # ── plots ──────────────────────────────────────────────────────────────────
     plt_p = sub.add_parser(
         'plots', aliases=['replot', 'plot'],
@@ -1567,6 +1708,10 @@ examples:
     plt_p.add_argument(
         '--lang', default='all', metavar='LANG',
         help='Language: c, java, python, all  [default: all]',
+    )
+    plt_p.add_argument(
+        '--tier', choices=['base', 'medium', 'full'], default='base', metavar='TIER',
+        help='Tier subdirectory to read results from  [default: base]',
     )
     plt_p.add_argument(
         '--results-dir', type=Path, default=RESULTS_DIR, metavar='DIR', dest='results_dir',
@@ -1602,6 +1747,14 @@ def main() -> None:
             cmd_fusion(args)
         case 'diagnose' | 'diag':
             cmd_diagnose(args)
+        case 'scaling-coverage' | 'scov':
+            cmd_scaling_coverage(args)
+        case 'scaling-tools' | 'stools':
+            cmd_scaling_tools(args)
+        case 'scaling-data' | 'sdata':
+            cmd_scaling_data(args)
+        case 'scaling-meta' | 'smeta':
+            cmd_scaling_meta(args)
         case 'plots' | 'replot' | 'plot':
             cmd_plots(args)
         case 'list' | 'ls':

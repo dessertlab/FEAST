@@ -180,6 +180,7 @@ def run_language_level(
     enriched_dir: str | Path = "data/enriched",
     results_root: str | Path = "data/results",
     tier: str = "base",
+    write_plots: bool = True,
 ) -> dict:
     """Run the full experiment for one (language, canonical level).
 
@@ -200,7 +201,7 @@ def run_language_level(
     df, cdf, tools, families = prep.df, prep.cdf, prep.tools, prep.families
     canonical_map, restriction, folds = prep.canonical_map, prep.restriction, prep.folds
 
-    results_dir = Path(results_root) / language / level
+    results_dir = Path(results_root) / language / level / tier
     results_dir.mkdir(parents=True, exist_ok=True)
     _print_header(language, level, df, tools, restriction)
 
@@ -270,13 +271,14 @@ def run_language_level(
     save_csv(detection_overall, results_dir / "fusion_detection_overall.csv")
     save_csv(tau_overall, results_dir / "fusion_tau_sweep.csv")
     save_csv(operating_points, results_dir / "fusion_operating_points.csv")
-    save_strategy_plots(overall, results_dir / "plots")
-    save_best_variant_plots(overall, results_dir / "plots" / "best_variants")
-    save_family_performance_plots(per_family_mean, overall, results_dir / "plots" / "top_cwe_families", tools=tools)
-    save_mean_difference_ci_report(
-        per_family_mean, results_dir / "plots", metric="f1", tools=tools,
-        per_family_per_fold=per_family_per_fold,
-    )
+    if write_plots:
+        save_strategy_plots(overall, results_dir / "plots")
+        save_best_variant_plots(overall, results_dir / "plots" / "best_variants")
+        save_family_performance_plots(per_family_mean, overall, results_dir / "plots" / "top_cwe_families", tools=tools)
+        save_mean_difference_ci_report(
+            per_family_mean, results_dir / "plots", metric="f1", tools=tools,
+            per_family_per_fold=per_family_per_fold,
+        )
 
     _print_overall(language, level, overall, detection_overall)
     if not operating_points.empty:
@@ -310,15 +312,16 @@ def regenerate_plots(
     language: str,
     level: str,
     *,
+    tier: str = "base",
     results_root: str | Path = "data/results",
 ) -> bool:
-    """Regenerate all plots and tables for one (language, level) from existing CSVs.
+    """Regenerate all plots and tables for one (language, level, tier) from existing CSVs.
 
     Reads the CSV files written by ``run_language_level`` and re-runs the plotting
     and CI steps without touching the enriched data or re-running fusion.  Returns
     True if the results directory was found and plots were written, False otherwise.
     """
-    results_dir = Path(results_root) / language / level
+    results_dir = Path(results_root) / language / level / tier
     config_path = results_dir / "config.json"
     overall_path = results_dir / "fusion_metrics_overall.csv"
     per_family_path = results_dir / "fusion_metrics_per_family.csv"
@@ -369,6 +372,7 @@ def regenerate_plots_all(
     level: str = "pillar_child",
     *,
     languages: list[str] | None = None,
+    tier: str = "base",
     results_root: str | Path = "data/results",
 ) -> list[bool]:
     """Regenerate plots for one or all languages."""
@@ -379,7 +383,7 @@ def regenerate_plots_all(
     langs = languages if languages is not None else (
         [language] if language != "all" else ["c_cpp", "java", "python"]
     )
-    return [regenerate_plots(lang, level, results_root=results_root) for lang in langs]
+    return [regenerate_plots(lang, level, tier=tier, results_root=results_root) for lang in langs]
 
 
 # ── console output ──────────────────────────────────────────────────────────

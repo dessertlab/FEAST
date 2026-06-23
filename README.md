@@ -29,6 +29,12 @@ Stage 5  Fusion           main.py fusion
 
 Stage 5b Diagnostics      main.py diagnose
            Tool-complementarity analysis (oracle/diversity/CV)  ->  data/results/<lang>/diagnostics/
+
+Stage 5c Scaling study    main.py scaling-coverage | scaling-tools | scaling-data | scaling-meta
+           Why fusion performance differs across languages: cross-language coverage,
+           within-language tool-count and dataset-size ablations, and a meta-regression
+           that separates the dataset-level drivers from the language label
+            ->  data/results/<lang>/.../ablation/  and  data/results/_cross_language/
 ```
 
 ---
