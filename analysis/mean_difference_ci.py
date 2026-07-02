@@ -450,7 +450,7 @@ def _annotate_pvalue(
     ax.text(
         hl, y - 0.15, p_str,
         ha="center", va="bottom",
-        fontsize=11, color="#444444",
+        fontsize=11, color="#000000",
         fontweight=weight,
         zorder=4,
     )
@@ -495,11 +495,11 @@ def save_mean_difference_ci_plot(
         rc = {
             "font.family": "serif",
             "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
-            "axes.edgecolor": "#222222",
+            "axes.edgecolor": "#000000",
             "axes.linewidth": 0.8,
-            "xtick.color": "#222222",
-            "ytick.color": "#222222",
-            "text.color": "#222222",
+            "xtick.color": "#000000",
+            "ytick.color": "#000000",
+            "text.color": "#000000",
             "savefig.facecolor": "white",
             "figure.facecolor": "white",
             "font.size": 14,
@@ -513,7 +513,7 @@ def save_mean_difference_ci_plot(
             for y in y_positions:
                 if y % 2:
                     ax.axhspan(y - 0.5, y + 0.5, color="#f7f7f7", zorder=0)
-            ax.axvline(0.0, color="#222222", linewidth=0.9, linestyle="--", zorder=1)
+            ax.axvline(0.0, color="#000000", linewidth=0.9, linestyle="--", zorder=1)
 
             for y, (_idx, row) in zip(y_positions, frame.iterrows(), strict=False):
                 hl = float(row["hodges_lehmann"])

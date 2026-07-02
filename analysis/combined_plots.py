@@ -20,18 +20,18 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
 
     rc = {
         "font.family": "sans-serif" if use_sans else "serif",
-        "axes.edgecolor": "#222222",
+        "axes.edgecolor": "#000000",
         "axes.linewidth": 0.8,
-        "xtick.color": "#222222",
-        "ytick.color": "#222222",
-        "text.color": "#222222",
+        "xtick.color": "#000000",
+        "ytick.color": "#000000",
+        "text.color": "#000000",
         "savefig.facecolor": "white",
         "figure.facecolor": "white",
-        "font.size": 14,
-        "axes.labelsize": 14,
-        "xtick.labelsize": 14,
-        "ytick.labelsize": 14,
-        "legend.fontsize": 14,
+        "font.size": 16,
+        "axes.labelsize": 16,
+        "xtick.labelsize": 16,
+        "ytick.labelsize": 16,
+        "legend.fontsize": 20,
     }
     if use_sans:
         rc["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans", "Liberation Sans"]
@@ -74,7 +74,7 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
             for y in y_positions:
                 if y % 2:
                     ax.axhspan(y - 0.5, y + 0.5, color="#f7f7f7", zorder=0)
-            ax.axvline(0.0, color="#222222", linewidth=0.9, linestyle="--", zorder=1)
+            ax.axvline(0.0, color="#000000", linewidth=0.9, linestyle="--", zorder=1)
 
             for y, (_idx, row) in zip(y_positions, df.iterrows()):
                 hl = float(row["hodges_lehmann"])
@@ -97,7 +97,7 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
                     capthick=1.0,
                     markersize=6.0,
                     markeredgewidth=0.8,
-                    markeredgecolor="#222222",
+                    markeredgecolor="#000000",
                     zorder=3,
                 )
 
@@ -108,16 +108,16 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
             ax.invert_yaxis()
             ax.set_xlabel("")
             ax.set_ylabel("")
-            ax.set_title(lang_titles[lang], fontsize=16, fontweight="bold", pad=12)
+            ax.set_title(lang_titles[lang], fontsize=22, fontweight="bold", pad=12)
             ax.grid(axis="x", linestyle=":", linewidth=0.6, color="#bdbdbd", alpha=0.8)
-            ax.tick_params(axis="both", labelsize=14)
+            ax.tick_params(axis="both", labelsize=16)
             for spine in ("top", "right"):
                 ax.spines[spine].set_visible(False)
 
         legend_handles = [
             mlines.Line2D(
                 [], [], color=style["color"], marker=style["marker"], linestyle="None",
-                markeredgecolor="#222222", markeredgewidth=0.8, markersize=8,
+                markeredgecolor="#000000", markeredgewidth=0.8, markersize=8,
                 label=STATUS_LABELS[status],
             )
             for status, style in STATUS_STYLES.items()
@@ -126,10 +126,10 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
         fig.legend(
             handles=legend_handles,
             loc="lower center",
-            bbox_to_anchor=(0.5, -0.04),
+            bbox_to_anchor=(0.5, -0.06),
             ncol=3,
             frameon=False,
-            fontsize=14,
+            fontsize=20,
             handletextpad=0.4,
             columnspacing=1.5,
         )
