@@ -450,7 +450,7 @@ def _annotate_pvalue(
     ax.text(
         hl, y - 0.15, p_str,
         ha="center", va="bottom",
-        fontsize=11, color="#000000",
+        fontsize=16, color="#000000",
         fontweight=weight,
         zorder=4,
     )

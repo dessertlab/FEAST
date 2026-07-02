@@ -27,11 +27,11 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
         "text.color": "#000000",
         "savefig.facecolor": "white",
         "figure.facecolor": "white",
-        "font.size": 16,
-        "axes.labelsize": 16,
-        "xtick.labelsize": 16,
-        "ytick.labelsize": 16,
-        "legend.fontsize": 20,
+        "font.size": 18,
+        "axes.labelsize": 18,
+        "xtick.labelsize": 18,
+        "ytick.labelsize": 18,
+        "legend.fontsize": 22,
     }
     if use_sans:
         rc["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans", "Liberation Sans"]
@@ -108,9 +108,9 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
             ax.invert_yaxis()
             ax.set_xlabel("")
             ax.set_ylabel("")
-            ax.set_title(lang_titles[lang], fontsize=22, fontweight="bold", pad=12)
+            ax.set_title(lang_titles[lang], fontsize=26, fontweight="bold", pad=12)
             ax.grid(axis="x", linestyle=":", linewidth=0.6, color="#bdbdbd", alpha=0.8)
-            ax.tick_params(axis="both", labelsize=16)
+            ax.tick_params(axis="both", labelsize=18)
             for spine in ("top", "right"):
                 ax.spines[spine].set_visible(False)
 
@@ -126,10 +126,10 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
         fig.legend(
             handles=legend_handles,
             loc="lower center",
-            bbox_to_anchor=(0.5, -0.06),
+            bbox_to_anchor=(0.5, -0.08),
             ncol=3,
             frameon=False,
-            fontsize=20,
+            fontsize=22,
             handletextpad=0.4,
             columnspacing=1.5,
         )
