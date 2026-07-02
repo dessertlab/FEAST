@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="558" viewBox="0 0 960 558">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="530" viewBox="0 0 960 530">
 <style>text{font-family:Arial,sans-serif;font-size:12px}.t{font-size:16px;font-weight:700}.ax{stroke:#888;stroke-width:1}.bar{fill:#3568a8}.v{fill:#222}</style>
 <text class="t" x="0" y="20">precision best variant per strategy (support-weighted)</text>
-<line class="ax" x1="367" y1="34" x2="367" y2="548"/>
+<line class="ax" x1="367" y1="34" x2="367" y2="520"/>
 <text x="0" y="57">bks (tau=0.8)</text>
 <rect class="bar" x="367" y="42" width="399" height="19" rx="2"/>
 <text class="v" x="880" y="57">0.794</text>
@@ -17,13 +17,13 @@
 <text x="0" y="169">logistic_regression (tau=0.8)</text>
 <rect class="bar" x="367" y="154" width="234" height="19" rx="2"/>
 <text class="v" x="880" y="169">0.467</text>
-<text x="0" y="197">gradient_boosting (tau=0.8)</text>
+<text x="0" y="197">random_forest (tau=0.9)</text>
 <rect class="bar" x="367" y="182" width="223" height="19" rx="2"/>
-<text class="v" x="880" y="197">0.444</text>
-<text x="0" y="225">random_forest (tau=0.9)</text>
-<rect class="bar" x="367" y="210" width="222" height="19" rx="2"/>
+<text class="v" x="880" y="197">0.443</text>
+<text x="0" y="225">gradient_boosting (tau=0.8)</text>
+<rect class="bar" x="367" y="210" width="221" height="19" rx="2"/>
 <text class="v" x="880" y="225">0.441</text>
-<text x="0" y="253">traditional_2_of_5</text>
+<text x="0" y="253">traditional_2_of_4</text>
 <rect class="bar" x="367" y="238" width="208" height="19" rx="2"/>
 <text class="v" x="880" y="253">0.415</text>
 <text x="0" y="281">tool:bandit</text>
@@ -41,7 +41,7 @@
 <text x="0" y="393">tool:semgrep</text>
 <rect class="bar" x="367" y="378" width="163" height="19" rx="2"/>
 <text class="v" x="880" y="393">0.325</text>
-<text x="0" y="421">or_1_of_5</text>
+<text x="0" y="421">or_1_of_4</text>
 <rect class="bar" x="367" y="406" width="161" height="19" rx="2"/>
 <text class="v" x="880" y="421">0.322</text>
 <text x="0" y="449">dst_pcr6 (tau=0.9, cal=specificity/sensitivity)</text>
@@ -53,6 +53,4 @@
 <text x="0" y="505">tool:pylint</text>
 <rect class="bar" x="367" y="490" width="134" height="19" rx="2"/>
 <text class="v" x="880" y="505">0.267</text>
-<text x="0" y="533">tool:devaic</text>
-<text class="v" x="367" y="533">n/a</text>
 </svg>

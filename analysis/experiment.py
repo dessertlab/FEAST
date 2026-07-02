@@ -102,6 +102,8 @@ def prepare_canonical(
     dataset = load_enriched(language, enriched_dir=enriched_dir)
     df = dataset.to_pandas().reset_index(drop=True)
     tools = _select_tools(list(dataset.tool_columns), exclude)
+    if language == "python":
+        tools = [t for t in tools if t.lower() != "devaic"]
     if not tools:
         raise ValueError(f"{language}/{level}: no tools left after exclusion")
 
@@ -181,6 +183,7 @@ def run_language_level(
     results_root: str | Path = "data/results",
     tier: str = "base",
     write_plots: bool = True,
+    show_pvalues: bool = False,
 ) -> dict:
     """Run the full experiment for one (language, canonical level).
 
@@ -277,7 +280,7 @@ def run_language_level(
         save_family_performance_plots(per_family_mean, overall, results_dir / "plots" / "top_cwe_families", tools=tools)
         save_mean_difference_ci_report(
             per_family_mean, results_dir / "plots", metric="f1", tools=tools,
-            per_family_per_fold=per_family_per_fold,
+            per_family_per_fold=None, show_pvalues=show_pvalues,
         )
 
     _print_overall(language, level, overall, detection_overall)
@@ -314,6 +317,7 @@ def regenerate_plots(
     *,
     tier: str = "base",
     results_root: str | Path = "data/results",
+    show_pvalues: bool = False,
 ) -> bool:
     """Regenerate all plots and tables for one (language, level, tier) from existing CSVs.
 
@@ -354,7 +358,7 @@ def regenerate_plots(
     save_family_performance_plots(per_family_mean, overall, results_dir / "plots" / "top_cwe_families", tools=tools)
     save_mean_difference_ci_report(
         per_family_mean, results_dir / "plots", metric="f1", tools=tools,
-        per_family_per_fold=per_family_per_fold,
+        per_family_per_fold=None, show_pvalues=show_pvalues,
     )
 
     tau_overall = tau_variant_table(detection_overall) if tau_path.exists() else pd.DataFrame()
@@ -374,6 +378,7 @@ def regenerate_plots_all(
     languages: list[str] | None = None,
     tier: str = "base",
     results_root: str | Path = "data/results",
+    show_pvalues: bool = False,
 ) -> list[bool]:
     """Regenerate plots for one or all languages."""
     from analysis.canonical import CANONICAL_LEVEL
@@ -383,7 +388,7 @@ def regenerate_plots_all(
     langs = languages if languages is not None else (
         [language] if language != "all" else ["c_cpp", "java", "python"]
     )
-    return [regenerate_plots(lang, level, tier=tier, results_root=results_root) for lang in langs]
+    return [regenerate_plots(lang, level, tier=tier, results_root=results_root, show_pvalues=show_pvalues) for lang in langs]
 
 
 # ── console output ──────────────────────────────────────────────────────────

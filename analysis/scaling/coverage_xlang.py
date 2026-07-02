@@ -35,7 +35,7 @@ def compare_coverage(
     languages: list[str] | None = None,
     *,
     level: str = CANONICAL_LEVEL,
-    tier: str = "base",
+    tier: str = "full",
     n_splits: int = 5,
     seed: int = 42,
     enriched_dir: str | Path = "data/enriched",

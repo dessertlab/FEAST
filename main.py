@@ -846,7 +846,9 @@ def _report_tool_names(payload: dict) -> set[str]:
 
 
 def _load_merged_by_language(merged_dir: Path) -> dict[str, pd.DataFrame]:
-    paths = sorted(merged_dir.glob('*.parquet'))
+    # Exclude *_unsampled.parquet files: those are intermediate backups produced by
+    # sample_primevul.py and must not override the canonical (sampled) merged parquets.
+    paths = sorted(p for p in merged_dir.glob('*.parquet') if '_unsampled' not in p.stem)
     if not paths:
         raise FileNotFoundError(f'no parquet files found under {merged_dir}')
 
@@ -1351,15 +1353,23 @@ def cmd_fusion(args) -> None:
         enriched_dir=ENRICHED_DIR,
         results_root=RESULTS_DIR,
         tier=args.tier,
+        show_pvalues=args.pvalues,
     )
 
 
 def cmd_plots(args) -> None:
     """Regenerate plots and CI report from existing fusion result CSVs."""
     from analysis.experiment import regenerate_plots_all
+    from analysis.combined_plots import make_combined_plot
 
     languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
-    regenerate_plots_all(languages=languages, tier=args.tier, results_root=args.results_dir)
+    regenerate_plots_all(languages=languages, tier=args.tier, results_root=args.results_dir, show_pvalues=args.pvalues)
+
+    try:
+        make_combined_plot(show_pvalues=args.pvalues, use_sans=False, results_root=args.results_dir)
+        make_combined_plot(show_pvalues=args.pvalues, use_sans=True, results_root=args.results_dir)
+    except Exception as e:
+        print(f"Note: Could not generate combined plots: {e}")
 
 
 def cmd_diagnose(args) -> None:
@@ -1619,6 +1629,10 @@ examples:
         '--seed', type=int, default=42, metavar='S',
         help='Random seed for fold assignment  [default: 42]',
     )
+    fus.add_argument(
+        '--pvalues', action='store_true',
+        help='Show p-values above whiskers/error bars in the plot',
+    )
 
     # ── diagnose ───────────────────────────────────────────────────────────────
     dia = sub.add_parser(
@@ -1643,8 +1657,8 @@ examples:
     )
     scov.add_argument('--lang', default='all', metavar='LANG',
                       help='Language: c, java, python, all  [default: all]')
-    scov.add_argument('--tier', choices=['base', 'medium', 'full'], default='base', metavar='TIER',
-                      help='Tier subdirectory to read covariates from  [default: base]')
+    scov.add_argument('--tier', choices=['base', 'medium', 'full'], default='full', metavar='TIER',
+                      help='Tier subdirectory to read covariates from  [default: full]')
     scov.add_argument('--n-splits', type=int, default=5, metavar='N', dest='n_splits',
                       help='Number of cross-validation folds  [default: 5]')
     scov.add_argument('--seed', type=int, default=42, metavar='S',
@@ -1657,8 +1671,8 @@ examples:
     )
     stool.add_argument('--lang', default='all', metavar='LANG',
                        help='Language: c, java, python, all  [default: all]')
-    stool.add_argument('--tier', choices=['base', 'medium', 'full'], default='base', metavar='TIER',
-                       help='Analysis tier  [default: base]')
+    stool.add_argument('--tier', choices=['base', 'medium', 'full'], default='full', metavar='TIER',
+                       help='Analysis tier  [default: full]')
     stool.add_argument('--sizes', default=None, metavar='K1,K2,...',
                        help='Subset sizes to evaluate  [default: 2..N]')
     stool.add_argument('--max-combos', type=int, default=None, metavar='M', dest='max_combos',
@@ -1677,8 +1691,8 @@ examples:
     )
     sdata.add_argument('--lang', default='all', metavar='LANG',
                        help='Language: c, java, python, all  [default: all]')
-    sdata.add_argument('--tier', choices=['base', 'medium', 'full'], default='base', metavar='TIER',
-                       help='Analysis tier  [default: base]')
+    sdata.add_argument('--tier', choices=['base', 'medium', 'full'], default='full', metavar='TIER',
+                       help='Analysis tier  [default: full]')
     sdata.add_argument('--fractions', default=None, metavar='F1,F2,...',
                        help='Row fractions of the full set to evaluate  [default: 0.1,0.25,0.5,0.75,1.0]')
     sdata.add_argument('--repeats', type=int, default=3, metavar='R',
@@ -1697,8 +1711,8 @@ examples:
     )
     smeta.add_argument('--lang', default='all', metavar='LANG',
                        help='Languages to include: all, or a single slug  [default: all]')
-    smeta.add_argument('--tier', choices=['base', 'medium', 'full'], default='base', metavar='TIER',
-                       help='Tier subdirectory to read results from  [default: base]')
+    smeta.add_argument('--tier', choices=['base', 'medium', 'full'], default='full', metavar='TIER',
+                       help='Tier subdirectory to read results from  [default: full]')
 
     # ── plots ──────────────────────────────────────────────────────────────────
     plt_p = sub.add_parser(
@@ -1716,6 +1730,10 @@ examples:
     plt_p.add_argument(
         '--results-dir', type=Path, default=RESULTS_DIR, metavar='DIR', dest='results_dir',
         help=f'Root results directory  [default: {RESULTS_DIR}]',
+    )
+    plt_p.add_argument(
+        '--pvalues', action='store_true',
+        help='Show p-values above whiskers/error bars in the plot',
     )
 
     # ── list ───────────────────────────────────────────────────────────────────

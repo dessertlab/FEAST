@@ -88,13 +88,20 @@ def run_fusion(
     labels = precompute_labels(validation_df, families)
     fire_index = build_fire_index(validation_df, tools)
 
+    threshold_2 = 2
+    threshold_k = (len(tools) + 1) // 2
+
     baseline_frames = [
         # References (shown first): each single tool, then their OR (1-of-N).
         *(single_tool_predictions(validation_df, t, families, labels, fire_index) for t in tools),
         or_predictions(validation_df, tools, families, labels, fire_index),
-        # Baseline: traditional K-of-N over all tools.
-        traditional_vote_predictions(validation_df, tools, families, threshold, labels, fire_index),
+        # Baseline: traditional 2-of-N
+        traditional_vote_predictions(validation_df, tools, families, threshold_2, labels, fire_index),
     ]
+    if threshold_k != threshold_2:
+        baseline_frames.append(
+            traditional_vote_predictions(validation_df, tools, families, threshold_k, labels, fire_index)
+        )
     scored_fuser_frames = [
         # Reliability-weighted voting (one frame per metric pair).
         *(weighted_vote_predictions(validation_df, lookup, strategy, tools, families, labels, fire_index)

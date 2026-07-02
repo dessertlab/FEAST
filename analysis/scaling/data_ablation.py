@@ -38,7 +38,7 @@ def ablate_dataset_size(
     language: str,
     *,
     level: str = CANONICAL_LEVEL,
-    tier: str = "base",
+    tier: str = "full",
     fractions: list[float] | None = None,
     repeats: int = 3,
     n_splits: int = 5,

@@ -54,7 +54,7 @@ def ablate_tools(
     language: str,
     *,
     level: str = CANONICAL_LEVEL,
-    tier: str = "base",
+    tier: str = "full",
     sizes: list[int] | None = None,
     max_combos: int | None = None,
     n_splits: int = 5,

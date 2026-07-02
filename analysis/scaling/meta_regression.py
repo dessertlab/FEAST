@@ -46,7 +46,7 @@ META_DIRNAME = "meta_regression"
 def build_stack(
     languages: list[str] | None = None,
     *,
-    tier: str = "base",
+    tier: str = "full",
     metric: str = "f1",
     baseline: str = "traditional",
     results_root: str | Path = "data/results",
@@ -162,6 +162,30 @@ def fit_ablation_regression(table: pd.DataFrame, predictor: str, outcome: str = 
 
 # ── statsmodels mixed-effects model ──────────────────────────────────────────────
 
+def drop_collinear(df_X: pd.DataFrame, tolerance: float = 1e-9) -> list[str]:
+    cols = list(df_X.columns)
+    if "Intercept" in cols:
+        cols.remove("Intercept")
+        cols = ["Intercept"] + cols
+    
+    kept = []
+    for col in cols:
+        if not kept:
+            kept.append(col)
+            continue
+        X_sub = df_X[kept].to_numpy()
+        col_vec = df_X[col].to_numpy()
+        pinv = np.linalg.pinv(X_sub)
+        proj = X_sub @ (pinv @ col_vec)
+        resid = col_vec - proj
+        norm_resid = np.linalg.norm(resid)
+        norm_col = np.linalg.norm(col_vec)
+        rel_resid = norm_resid / norm_col if norm_col > 1e-9 else norm_resid
+        if rel_resid > tolerance:
+            kept.append(col)
+    return kept
+
+
 def fit_mixed(stack: pd.DataFrame, *, group: str = "family") -> object:
     """Mixed model: delta ~ dataset covariates, random intercept on ``group``.
 
@@ -169,15 +193,30 @@ def fit_mixed(stack: pd.DataFrame, *, group: str = "family") -> object:
     """
     try:
         import statsmodels.formula.api as smf
+        import patsy
     except ModuleNotFoundError as exc:  # pragma: no cover - environment dependent
         raise ModuleNotFoundError(
-            "fit_mixed needs statsmodels — add it (already in pyproject) and run `uv sync`."
+            "fit_mixed needs statsmodels and patsy — add them and run `uv sync`."
         ) from exc
 
     predictors = ["n_tools", "log_gt_kept", "kept_frac", "log_family_support", "union_recall"]
     usable = [p for p in predictors if stack[p].notna().any() and stack[p].nunique() > 1]
     data = stack.dropna(subset=usable + ["delta", group]).reset_index(drop=True)
-    formula = "delta ~ " + " + ".join(usable)
+
+    # Use patsy to build the full fixed-effects design matrix to identify collinearity
+    full_formula = "delta ~ " + " + ".join(usable)
+    _, exog = patsy.dmatrices(full_formula, data, return_type="dataframe")
+
+    # Drop collinear columns, preserving Intercept if present
+    independent_cols = drop_collinear(exog)
+    independent_predictors = [c for c in independent_cols if c != "Intercept"]
+
+    formula = "delta ~ " + " + ".join(independent_predictors)
+
+    dropped = [p for p in usable if p not in independent_predictors]
+    if dropped:
+        print(f"[warn] Dropped collinear predictors in mixed model: {dropped}")
+
     model = smf.mixedlm(formula, data=data, groups=data[group])
     return model.fit(reml=True)
 
@@ -187,7 +226,7 @@ def fit_mixed(stack: pd.DataFrame, *, group: str = "family") -> object:
 def run_meta(
     languages: list[str] | None = None,
     *,
-    tier: str = "base",
+    tier: str = "full",
     results_root: str | Path = "data/results",
 ) -> dict:
     """Assemble the stack, fit every model that its inputs allow, and write the report."""

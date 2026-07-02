@@ -1,8 +1,8 @@
 {
   "any_tool_adds_signal": true,
-  "auc_all_tools": 0.6883161757349674,
-  "auc_best_single": 0.6654580703123943,
-  "auc_gain_full_ensemble": 0.02285810542257305,
+  "auc_all_tools": 0.5467766035648035,
+  "auc_best_single": 0.5392015058433941,
+  "auc_gain_full_ensemble": 0.007575097721409407,
   "best_tool_by_auc": "flawfinder",
   "detection_best_tool_recall": 0.3795312626713162,
   "detection_or_recall": 0.432041196983213,

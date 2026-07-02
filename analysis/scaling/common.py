@@ -27,13 +27,13 @@ LANGUAGES = ["java", "python", "c_cpp"]
 LEVEL = "pillar_child"
 
 
-def results_dir(language: str, tier: str = "base", *, level: str = LEVEL,
+def results_dir(language: str, tier: str = "full", *, level: str = LEVEL,
                 results_root: str | Path = "data/results") -> Path:
     """Directory holding one fusion run's CSV/JSON outputs."""
     return Path(results_root) / language / level / tier
 
 
-def load_config(language: str, tier: str = "base", *, level: str = LEVEL,
+def load_config(language: str, tier: str = "full", *, level: str = LEVEL,
                 results_root: str | Path = "data/results") -> dict:
     path = results_dir(language, tier, level=level, results_root=results_root) / "config.json"
     if not path.exists():
@@ -41,7 +41,7 @@ def load_config(language: str, tier: str = "base", *, level: str = LEVEL,
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def n_samples(language: str, tier: str = "base", *, level: str = LEVEL,
+def n_samples(language: str, tier: str = "full", *, level: str = LEVEL,
               results_root: str | Path = "data/results") -> int:
     """Number of code samples that entered the run (rows of ``folds.csv``)."""
     path = results_dir(language, tier, level=level, results_root=results_root) / "folds.csv"
@@ -50,7 +50,7 @@ def n_samples(language: str, tier: str = "base", *, level: str = LEVEL,
     return int(len(pd.read_csv(path)))
 
 
-def dataset_covariates(language: str, tier: str = "base", *, level: str = LEVEL,
+def dataset_covariates(language: str, tier: str = "full", *, level: str = LEVEL,
                        results_root: str | Path = "data/results") -> dict:
     """Per-language predictors for the cross-language model.
 
@@ -73,7 +73,7 @@ def dataset_covariates(language: str, tier: str = "base", *, level: str = LEVEL,
     }
 
 
-def load_per_family_per_fold(language: str, tier: str = "base", *, level: str = LEVEL,
+def load_per_family_per_fold(language: str, tier: str = "full", *, level: str = LEVEL,
                              results_root: str | Path = "data/results") -> pd.DataFrame:
     path = (results_dir(language, tier, level=level, results_root=results_root)
             / "fusion_metrics_per_family_per_fold.csv")
