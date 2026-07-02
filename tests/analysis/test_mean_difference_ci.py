@@ -50,5 +50,5 @@ def test_mean_difference_ci_report_writes_csv_svg_and_png(tmp_path):
     assert (tmp_path / "mean_difference_ci_f1.svg").is_file()
     assert (tmp_path / "mean_difference_ci_f1.png").is_file()
     svg = (tmp_path / "mean_difference_ci_f1.svg").read_text(encoding="utf-8")
-    assert "traditional_2_of_4" in svg
+    assert "Weighted Voting" in svg
     assert "or_1_of_4" not in svg
