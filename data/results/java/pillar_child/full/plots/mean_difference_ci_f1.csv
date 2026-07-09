@@ -1,0 +1,12 @@
+baseline,baseline_strategy,strategy,metric,pairing,n_pairs,mean_difference,hodges_lehmann,p_value,ci_low,ci_high,ci_level,status,n_coverage_gain,n_coverage_loss
+traditional,traditional_2_of_3,weighted_fire_specificity_silence_sensitivity_tau_0_6,f1,family,14,0.13102836836330214,0.12468656498510071,0.0014737808438751421,0.10687784044703033,0.1424952895231711,0.95,incremento_statistico,7,0
+traditional,traditional_2_of_3,dst_dempster_fire_specificity_silence_sensitivity_tau_0_8,f1,family,14,0.12881749466876904,0.11307932612765145,0.0008544921875,0.09511078685612392,0.13104786539917898,0.95,incremento_statistico,7,0
+traditional,traditional_2_of_3,dst_pcr6_fire_specificity_silence_sensitivity_tau_0_7,f1,family,14,0.13143769337808633,0.12055696249542538,0.0014737808438751421,0.10298540157264806,0.1381285234182027,0.95,incremento_statistico,7,0
+traditional,traditional_2_of_3,dst_yager_fire_specificity_silence_sensitivity_tau_0_7,f1,family,14,0.13059600312727146,0.11466513073972132,0.0014737808438751421,0.09719218173626887,0.13213807974317376,0.95,incremento_statistico,7,0
+traditional,traditional_2_of_3,naive_bayes_tau_0_4,f1,family,8,0.138369061515993,0.13562324342076748,0.046875,0.097840524315972,0.17340596252556295,0.95,incremento_statistico,1,0
+traditional,traditional_2_of_3,bks_tau_0_7,f1,family,7,-0.14180887788828242,-0.08694418973064164,0.03125,-0.136343018023518,-0.03754536143776526,0.95,degradazione_statistica,0,5
+traditional,traditional_2_of_3,logistic_regression_tau_0_7,f1,family,10,0.17616579722379672,0.17613254656275293,0.001953125,0.1515630936263371,0.20070199949916875,0.95,incremento_statistico,3,0
+traditional,traditional_2_of_3,logistic_interactions_tau_0_7,f1,family,10,0.17560388519735376,0.17613254656275293,0.001953125,0.1515457853121054,0.20071930781340044,0.95,incremento_statistico,3,0
+traditional,traditional_2_of_3,decision_tree_tau_0_7,f1,family,10,0.17510230095371254,0.17613254656275293,0.001953125,0.15145374708423917,0.2008113460412667,0.95,incremento_statistico,3,0
+traditional,traditional_2_of_3,random_forest_tau_0_7,f1,family,10,0.17549855262707265,0.17613254656275293,0.001953125,0.1514713084491255,0.20079378467638034,0.95,incremento_statistico,3,0
+traditional,traditional_2_of_3,gradient_boosting_tau_0_7,f1,family,10,0.17553825113171972,0.17613254656275293,0.001953125,0.15161589814062598,0.20064919498487988,0.95,incremento_statistico,3,0

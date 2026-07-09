@@ -1,0 +1,21 @@
+stacked observations: 250 over 3 languages, 28 families
+
+Mixed model fitted — see mixed_model_summary.txt
+
+            Mixed Linear Model Regression Results
+=============================================================
+Model:                MixedLM   Dependent Variable:   delta  
+No. Observations:     98        Method:               REML   
+No. Groups:           15        Scale:                0.0068 
+Min. group size:      1         Log-Likelihood:       84.7411
+Max. group size:      10        Converged:            Yes    
+Mean group size:      6.5                                    
+-------------------------------------------------------------
+                   Coef.  Std.Err.   z    P>|z| [0.025 0.975]
+-------------------------------------------------------------
+Intercept           0.101    0.353  0.287 0.774 -0.590  0.792
+n_tools            -0.022    0.013 -1.639 0.101 -0.048  0.004
+log_gt_kept         0.004    0.105  0.038 0.970 -0.203  0.211
+log_family_support  0.020    0.047  0.422 0.673 -0.072  0.111
+Group Var           0.005    0.033                           
+=============================================================

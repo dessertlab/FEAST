@@ -1,0 +1,9 @@
+baseline,baseline_strategy,strategy,metric,pairing,n_pairs,mean_difference,std_difference,standard_error,ci_low,ci_high,ci_level,status
+traditional,traditional_2_of_5,weighted_fire_specificity_silence_sensitivity_tau_0_5,f1,fold,5,0.08167876207237657,0.015783140560103437,0.007058435038165078,0.06208454640643031,0.10127297773832282,0.95,incremento_statistico
+traditional,traditional_2_of_5,dst_dempster_fire_specificity_silence_sensitivity_tau_0_9,f1,fold,5,0.0742242585458399,0.01589405097929797,0.007108035685511472,0.05449235148286006,0.09395616560881975,0.95,incremento_statistico
+traditional,traditional_2_of_5,dst_pcr6_fire_specificity_silence_sensitivity_tau_0_7,f1,fold,5,0.08213451519036694,0.01587022067703197,0.007097378450353243,0.062432192612186334,0.10183683776854754,0.95,incremento_statistico
+traditional,traditional_2_of_5,dst_yager_fire_specificity_silence_sensitivity_tau_0_6,f1,fold,5,0.08167876207237657,0.015783140560103437,0.007058435038165078,0.06208454640643031,0.10127297773832282,0.95,incremento_statistico
+traditional,traditional_2_of_5,naive_bayes_tau_0_2,f1,fold,5,0.11352215636165978,0.0210470012986688,0.009412505125269957,0.08739304213391039,0.13965127058940918,0.95,incremento_statistico
+traditional,traditional_2_of_5,bks_tau_0_3,f1,fold,5,0.05739328764802678,0.016246776580133866,0.007265779369686176,0.037223484117777955,0.0775630911782756,0.95,incremento_statistico
+traditional,traditional_2_of_5,logistic_regression_tau_0_6,f1,fold,5,0.07685217672149407,0.01795021481597437,0.008027580107848514,0.05456761434210659,0.09913673910088154,0.95,incremento_statistico
+traditional,traditional_2_of_5,logistic_interactions_tau_0_6,f1,fold,5,0.07775248496231661,0.018501889698992954,0.008274296615830273,0.054783037556771774,0.10072193236786145,0.95,incremento_statistico
