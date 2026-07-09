@@ -129,7 +129,7 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
             bbox_to_anchor=(0.5, -0.08),
             ncol=3,
             frameon=False,
-            fontsize=22,
+            fontsize=28,
             handletextpad=0.4,
             columnspacing=1.5,
         )
