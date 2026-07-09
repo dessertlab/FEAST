@@ -1,8 +1,10 @@
 # FEAST
 
+This repository contains the code for reproducing the experiments described in the paper _"CWE-Aware Calibration and Fusion of Open Source Static Analysis Tools for Vulnerability Detection"_ submitted to **Journal of Systems and Software**.
+
 **Fusing Evidence Across Static Analysis Tools for CWE-Specific Vulnerability Detection**
 
-Multi-language vulnerability dataset pipeline. Collects, normalises, and synthesises labelled code samples from 24 public sources across C/C++, Java, and Python, each annotated with CWE IDs from the MITRE catalogue. Then runs a full fusion experiment that calibrates per-tool reliability and compares every fusion strategy under cross-validation.
+Multi-language vulnerability dataset pipeline. Collects, normalises, and synthesises labelled code samples from 16 public sources across C/C++, Java, and Python, each annotated with CWE IDs from the MITRE catalogue. Then runs a full fusion experiment that calibrates per-tool reliability and compares every fusion strategy under cross-validation.
 
 ---
 
@@ -44,6 +46,8 @@ Stage 5c Scaling study    main.py scaling-coverage | scaling-tools | scaling-dat
 ```
 FEAST/
 ├── main.py                          # CLI (see Usage below)
+├── sample_primevul.py               # One-off PrimeVul safe samples downsampler
+├── pyproject.toml                   # Project configuration and dependencies
 ├── ingestion/                       # Stage 0–4 extraction library
 │   ├── schema.py                    # FunctionSample dataclass
 │   ├── cwe_navigator.py             # MITRE CWE XML parser and tree walker
@@ -56,63 +60,61 @@ FEAST/
 │   ├── folds.py                     # multilabel-stratified k-fold splitting
 │   ├── aggregation.py               # fold-mean + support-weighted family aggregation
 │   ├── complementarity.py           # oracle/diversity/CV tool-complementarity diagnostics
+│   ├── mean_difference_ci.py        # non-parametric mean difference confidence intervals
+│   ├── _mean_difference_ci.py       # old parametric paired t-test implementation (reference only)
 │   ├── reporting.py                 # CSV + plot writers
-│   └── fusion/
-│       ├── common.py                # shared plumbing (fire index, evidence_row, FUSER_ORDER)
-│       ├── baselines.py             # single-tool + OR-of-N baselines
-│       ├── traditional.py           # K-of-N voting
-│       ├── weighted.py              # reliability-weighted voting (PPV/NPV, spec/sens, FPR/FNR)
-│       ├── dst.py                   # Dempster-Shafer (Dempster, PCR6, Yager)
-│       ├── bayes.py                 # naive Bayes over log-likelihood ratios
-│       ├── bks.py                   # Behavior-Knowledge Space (empirical pattern lookup)
-│       ├── logistic.py              # per-family logistic regression (+ pairwise interactions)
-│       ├── ml.py                    # Decision Tree, Random Forest, Gradient Boosting
-│       └── predictions.py           # evaluation helpers and tau-variant expansion
+│   ├── fusion/                      # voting and machine learning fusion logic
+│   └── scaling/                     # scaling and meta-regression analysis logic
 ├── notebooks/
 │   ├── 00_download_datasets.ipynb   # Stage 0 – download
 │   ├── 01_c_cpp.ipynb               # Stage 1 – C/C++ statistics
 │   ├── 01_java.ipynb                # Stage 1 – Java statistics
 │   ├── 01_python.ipynb              # Stage 1 – Python statistics
 │   ├── 02_synthesis.ipynb           # Stage 2 – process + merge
-│   └── 03_materialize.ipynb         # Stage 3 – write source files
+│   ├── 03_materialize.ipynb         # Stage 3 – write source files
+│   └── 04_inspect.ipynb             # Stage 4 – (Obsolete/legacy inspection script)
+├── auxiliary/                       # Helper analysis scripts and composition figures
+│   ├── figures/                     # Dataset composition overview PDF and PNG
+│   └── *.py                         # Scripts for count calculations and visualization
 ├── data/
 │   ├── raw/                         # downloaded datasets (git-ignored)
 │   ├── cwec_latest.xml              # MITRE CWE catalogue (auto-downloaded)
-│   ├── processed/                   # per-dataset CWE-filtered parquets
-│   │   ├── c_cpp/
-│   │   ├── java/
-│   │   └── python/
-│   ├── merged/                      # final deduplicated parquets
-│   │   ├── c_cpp_merged.parquet
-│   │   ├── java_merged.parquet
-│   │   └── python_merged.parquet
-│   ├── materialized/                # individual source files for static analysis
-│   │   ├── c_cpp/
-│   │   │   ├── <dataset>/           # one directory per source dataset
-│   │   │   │   └── <id>.c           # one file per sample
-│   │   │   └── index.parquet        # sample_id -> source, label, cwes, branch
-│   │   ├── java/
-│   │   └── python/
-│   ├── SAT-reports/                 # static-analysis JSON reports
-│   ├── enriched/                    # per-language merged samples + per-tool CWE columns
+│   ├── processed/                   # per-dataset CWE-filtered parquets (git-ignored)
+│   ├── merged/                      # final deduplicated parquets (git-ignored)
+│   ├── materialized/                # individual source files for static analysis (git-ignored)
+│   ├── SAT-reports/                 # static-analysis JSON reports (git-ignored)
+│   ├── enriched/                    # per-language merged samples + tool columns (git-ignored)
 │   └── results/                     # fusion experiment outputs
-│       └── <lang>/pillar_child/
-│           ├── config.json          # experiment parameters
-│           ├── canonical_map.csv    # raw CWE -> canonical family
-│           ├── folds.csv            # per-row fold assignment
-│           ├── calibration_reliability.csv  # per-(tool,family,fold) reliability metrics
-│           ├── fusion_metrics_per_family.csv  # per-(strategy,family) metrics (mean over folds)
-│           ├── fusion_metrics_overall.csv     # support-weighted aggregate per strategy
-│           ├── fusion_detection_overall.csv   # vuln/safe detection metrics per strategy
-│           ├── fusion_tau_sweep.csv           # all (strategy, tau) combinations
-│           ├── fusion_operating_points.csv    # best-MCC tau per strategy
-│           └── plots/               # per-metric and per-family plots
+│       ├── _cross_language/         # cross-language tool-coverage and meta-regression data
+│       │   ├── coverage.csv         # cross-language Union Recall data
+│       │   └── meta_regression/     # mixed model summaries and stack data
+│       ├── <lang>/
+│       │   └── pillar_child/
+│       │       ├── diagnostics/     # Stage 5b tool complementarity diagnostics
+│       │       │   ├── reliability_heatmap.png  # heatmaps of tool reliability
+│       │       │   └── *.csv        # conditional value, marginal contributions, diversity
+│       │       └── <tier>/          # tier folders: base / medium / full
+│       │           ├── config.json  # experiment parameters
+│       │           ├── canonical_map.csv  # raw CWE -> canonical family
+│       │           ├── folds.csv    # per-row fold assignment
+│       │           ├── calibration_reliability.csv  # reliability metrics
+│       │           ├── fusion_metrics_per_family.csv  # family metrics
+│       │           ├── fusion_metrics_per_family_per_fold.csv  # detailed fold metrics
+│       │           ├── fusion_metrics_overall.csv     # support-weighted metrics
+│       │           ├── fusion_detection_overall.csv   # binary detection metrics
+│       │           ├── fusion_tau_sweep.csv           # tau sweep sweep values
+│       │           ├── fusion_operating_points.csv    # best-MCC tau per strategy
+│       │           ├── plots/       # per-metric and per-family plots
+│       │           └── ablation/    # tool-count and dataset-size ablation data
+│       └── *.png / *.svg            # combined plots and overall calibration figures
 ├── outputs/
 │   ├── stage1_c_cpp_stats.xlsx
+│   ├── stage1_dataset_stats.xlsx    # overall dataset counts and breakdown
 │   ├── stage1_java_stats.xlsx
 │   └── stage1_python_stats.xlsx
-├── tests/                           # unit tests
+├── tests/                           # Unit tests for ingestion and analysis modules
 └── pyproject.toml
+```
 ```
 
 ---
@@ -123,51 +125,51 @@ FEAST/
 
 ### C/C++ — 11 sources
 
-| Dataset | Branch | Positives | Negatives |
-|---------|--------|-----------|-----------|
-| PrimeVul | real | `target=1`, single-function commit, CWE non-empty | all `target=0` (explicit) |
-| ICVul | real | `before_change=True`, `fc_hash` in CVE-FC mapping | none |
-| CVEfixes(C) | real | C/C++ language, single-function commit, CWE non-empty | none |
-| MegaVul | real | single-function commit, CWE non-empty | none |
-| SecVulEval | real | `is_vulnerable=True` | all `is_vulnerable=False` |
-| CrossVul(C) | real | `bad_*` files (vulnerable functions) | `good_*` files (fix-paired) |
-| SVEN(C) | real | `func_src_before`, CWE from `vul_type` | `func_src_after` (fix-paired) |
-| Juliet(C) | synth | `*_bad.c` files | `*_good*.c` files |
-| CASTLE | synth | `vulnerable=True` | `vulnerable=False` |
-| FormAI | ai | `VULNERABLE` / ESBMC `error_type` mapped to CWE | `NON-VULNERABLE` / safe samples |
-| LLMSecEval(C) | ai | `gen_scenario/*.c` (Copilot completions) | none |
+| Dataset       | Branch | Positives                                             | Negatives                       |
+| ------------- | ------ | ----------------------------------------------------- | ------------------------------- |
+| PrimeVul      | real   | `target=1`, single-function commit, CWE non-empty     | all `target=0` (explicit)       |
+| ICVul         | real   | `before_change=True`, `fc_hash` in CVE-FC mapping     | none                            |
+| CVEfixes(C)   | real   | C/C++ language, single-function commit, CWE non-empty | none                            |
+| MegaVul       | real   | single-function commit, CWE non-empty                 | none                            |
+| SecVulEval    | real   | `is_vulnerable=True`                                  | all `is_vulnerable=False`       |
+| CrossVul(C)   | real   | `bad_*` files (vulnerable functions)                  | `good_*` files (fix-paired)     |
+| SVEN(C)       | real   | `func_src_before`, CWE from `vul_type`                | `func_src_after` (fix-paired)   |
+| Juliet(C)     | synth  | `*_bad.c` files                                       | `*_good*.c` files               |
+| CASTLE        | synth  | `vulnerable=True`                                     | `vulnerable=False`              |
+| FormAI        | ai     | `VULNERABLE` / ESBMC `error_type` mapped to CWE       | `NON-VULNERABLE` / safe samples |
+| LLMSecEval(C) | ai     | `gen_scenario/*.c` (Copilot completions)              | none                            |
 
 ### Java — 5 sources
 
-| Dataset | Branch | Positives | Negatives |
-|---------|--------|-----------|-----------|
-| CVEfixes(Java) | real | Java language, single-function commit | none |
-| CrossVul(Java) | real | `bad_*` files | `good_*` files (fix-paired) |
-| Juliet(Java) | synth | `*_bad.java` files | `*_good*.java` files |
-| OWASP(Java) | synth | `real vulnerability=true` | `real vulnerability=false` |
-| CAPEC_LLM(Java) | ai | LLM-generated snippets for CAPEC entries | none |
+| Dataset         | Branch | Positives                                | Negatives                   |
+| --------------- | ------ | ---------------------------------------- | --------------------------- |
+| CVEfixes(Java)  | real   | Java language, single-function commit    | none                        |
+| CrossVul(Java)  | real   | `bad_*` files                            | `good_*` files (fix-paired) |
+| Juliet(Java)    | synth  | `*_bad.java` files                       | `*_good*.java` files        |
+| OWASP(Java)     | synth  | `real vulnerability=true`                | `real vulnerability=false`  |
+| CAPEC_LLM(Java) | ai     | LLM-generated snippets for CAPEC entries | none                        |
 
 ### Python — 9 sources
 
-| Dataset | Branch | Positives | Negatives |
-|---------|--------|-----------|-----------|
-| CVEfixes(Python) | real | Python language, single-function commit | none |
-| PatchEval | real | `vul_func` where `language=Python` | `fix_func` (fix-paired) |
-| CrossVul(Python) | real | `bad_*` files | `good_*` files (fix-paired) |
-| PyVul | real | `code_before`, CWE from commits map | `code_after` (fix-paired) |
-| SVEN(Python) | real | `func_src_before` | `func_src_after` (fix-paired) |
-| OWASP(Python) | synth | `real vulnerability=true` | `real vulnerability=false` |
-| LLMSecEval | ai | `gen_scenario/*.py` (Copilot completions) | `Secure/*.py` files |
-| SecurityEval | ai | all samples (vulnerable-only dataset) | none |
-| CAPEC_LLM(Python) | ai | LLM-generated snippets for CAPEC entries | none |
+| Dataset           | Branch | Positives                                 | Negatives                     |
+| ----------------- | ------ | ----------------------------------------- | ----------------------------- |
+| CVEfixes(Python)  | real   | Python language, single-function commit   | none                          |
+| PatchEval         | real   | `vul_func` where `language=Python`        | `fix_func` (fix-paired)       |
+| CrossVul(Python)  | real   | `bad_*` files                             | `good_*` files (fix-paired)   |
+| PyVul             | real   | `code_before`, CWE from commits map       | `code_after` (fix-paired)     |
+| SVEN(Python)      | real   | `func_src_before`                         | `func_src_after` (fix-paired) |
+| OWASP(Python)     | synth  | `real vulnerability=true`                 | `real vulnerability=false`    |
+| LLMSecEval        | ai     | `gen_scenario/*.py` (Copilot completions) | `Secure/*.py` files           |
+| SecurityEval      | ai     | all samples (vulnerable-only dataset)     | none                          |
+| CAPEC_LLM(Python) | ai     | LLM-generated snippets for CAPEC entries  | none                          |
 
 **Branch semantics:**
 
-| Branch | Meaning |
-|--------|---------|
-| `real` | Functions extracted from actual CVE patches or real-world codebases |
+| Branch  | Meaning                                                                   |
+| ------- | ------------------------------------------------------------------------- |
+| `real`  | Functions extracted from actual CVE patches or real-world codebases       |
 | `synth` | Template/rule-based synthesised code (Juliet test suite, OWASP Benchmark) |
-| `ai` | LLM-generated code (Copilot completions, ChatGPT-generated snippets) |
+| `ai`    | LLM-generated code (Copilot completions, ChatGPT-generated snippets)      |
 
 ---
 
@@ -190,10 +192,10 @@ class FunctionSample:
 
 Parquet files produced by Stage 2 add two columns:
 
-| Column | Description |
-|--------|-------------|
-| `source` | Dataset name (e.g. `"PyVul"`) |
-| `code_hash` | Full SHA-256 of normalised code (used for deduplication) |
+| Column      | Description                                                         |
+| ----------- | ------------------------------------------------------------------- |
+| `source`    | Dataset name (e.g. `"PyVul"`)                                       |
+| `code_hash` | Full SHA-256 of normalised code (used for deduplication)            |
 | `sample_id` | First 16 hex chars of `code_hash`; used as filename stem in Stage 3 |
 
 ---
@@ -202,13 +204,13 @@ Parquet files produced by Stage 2 add two columns:
 
 The pipeline classifies every CWE ID against `cwec_latest.xml` from MITRE:
 
-| Type | Meaning |
-|------|---------|
-| `leaf` | Most specific weakness; no children in MITRE hierarchy |
-| `non-leaf` | Parent or intermediate node (broad attribution) |
-| `category` | MITRE organisational grouping, not a proper weakness |
-| `deprecated` | Superseded weakness (name starts with `DEPRECATED:`) |
-| `unknown` | ID not found in `cwec_latest.xml` |
+| Type         | Meaning                                                |
+| ------------ | ------------------------------------------------------ |
+| `leaf`       | Most specific weakness; no children in MITRE hierarchy |
+| `non-leaf`   | Parent or intermediate node (broad attribution)        |
+| `category`   | MITRE organisational grouping, not a proper weakness   |
+| `deprecated` | Superseded weakness (name starts with `DEPRECATED:`)   |
+| `unknown`    | ID not found in `cwec_latest.xml`                      |
 
 Stage 2 retains only `leaf` and `non-leaf` by default. The Excel reports colour-code CWE columns by type (green, amber, purple, pink, gray).
 
@@ -242,6 +244,7 @@ Run in order. All notebooks are idempotent.
 Downloads all 17 raw datasets to `data/raw/`. Each section skips if the target path already exists. Run this **once** before any other notebook. Equivalent to `main.py download`.
 
 Two datasets require manual download from Zenodo and cannot be fetched programmatically:
+
 - **CrossVul** — place `crossvul.zip` at `data/raw/crossvul.zip`
 - **LLMSecEval (vulnerable)** — place `copilot-cwe-scenarios-dataset.zip` at `data/raw/copilot-cwe-scenarios-dataset.zip` (Zenodo record 5225651)
 
@@ -257,6 +260,7 @@ Per-language quality analysis. For each source dataset:
 **Output:** `outputs/stage1_{c_cpp,java,python}_stats.xlsx`
 
 Each workbook contains:
+
 - One sheet per branch: `{lang}_Real`, `{lang}_Synth`, `{lang}_AI`
 - A `Filters` sheet documenting extraction methodology for every source
 - A `Legend` sheet explaining CWE colour coding
@@ -299,9 +303,9 @@ uv run python main.py download
 
 Downloads all 17 datasets to `data/raw/`. Idempotent: already-present paths are skipped. Two datasets require manual download from Zenodo; the command prints instructions for these when they are missing:
 
-| Dataset | File to place in `data/raw/` |
-|---------|------------------------------|
-| CrossVul | `crossvul.zip` |
+| Dataset                 | File to place in `data/raw/`                                |
+| ----------------------- | ----------------------------------------------------------- |
+| CrossVul                | `crossvul.zip`                                              |
 | LLMSecEval (vulnerable) | `copilot-cwe-scenarios-dataset.zip` (Zenodo record 5225651) |
 
 ### `list` — show all available sources
@@ -316,15 +320,15 @@ uv run python main.py list
 uv run python main.py synthesize [OPTIONS]
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--lang LANG` | `all` | Language to process: `c`, `java`, `python`, or `all` |
-| `--sources SRC1,SRC2,...` | all available | Comma-separated dataset names to include |
-| `--cwe-types TYPES` | `leaf,non-leaf` | CWE node types to retain for vulnerable samples |
-| `--cwes CWE-79,CWE-89,...` | all | Explicit whitelist of CWE IDs |
-| `--min-cwe-count N` | `1` (off) | Drop CWEs with fewer than N vulnerable samples after merge |
-| `--branches BRANCHES` | `all` | Source branches to include: `real`, `synth`, `ai`, or comma-separated |
-| `--data-dir DIR` | `data/raw/` | Override the raw data directory |
+| Option                     | Default         | Description                                                           |
+| -------------------------- | --------------- | --------------------------------------------------------------------- |
+| `--lang LANG`              | `all`           | Language to process: `c`, `java`, `python`, or `all`                  |
+| `--sources SRC1,SRC2,...`  | all available   | Comma-separated dataset names to include                              |
+| `--cwe-types TYPES`        | `leaf,non-leaf` | CWE node types to retain for vulnerable samples                       |
+| `--cwes CWE-79,CWE-89,...` | all             | Explicit whitelist of CWE IDs                                         |
+| `--min-cwe-count N`        | `1` (off)       | Drop CWEs with fewer than N vulnerable samples after merge            |
+| `--branches BRANCHES`      | `all`           | Source branches to include: `real`, `synth`, `ai`, or comma-separated |
+| `--data-dir DIR`           | `data/raw/`     | Override the raw data directory                                       |
 
 `--cwe-types`, `--cwes`, and `--min-cwe-count` compose independently: a vulnerable sample is kept only if it satisfies all active filters simultaneously.
 
@@ -369,10 +373,10 @@ Output is written to `data/processed/<lang>/` (one parquet per source) and `data
 uv run python main.py materialize [OPTIONS]
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--lang LANG` | `all` | Language to materialize: `c`, `java`, `python`, or `all` |
-| `--overwrite` | off | Re-write files that already exist |
+| Option        | Default | Description                                              |
+| ------------- | ------- | -------------------------------------------------------- |
+| `--lang LANG` | `all`   | Language to materialize: `c`, `java`, `python`, or `all` |
+| `--overwrite` | off     | Re-write files that already exist                        |
 
 Reads `data/merged/<lang>_merged.parquet` and writes one file per sample to `data/materialized/<lang>/<dataset>/<sample_id>.<ext>`. Also writes a per-language `index.parquet` lookup table. Existing files are skipped unless `--overwrite` is set.
 
@@ -395,11 +399,11 @@ uv run python main.py materialize --overwrite
 uv run python main.py enrich [OPTIONS]
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--merged-dir DIR` | `data/merged/` | Directory containing merged parquet files |
-| `--reports-dir DIR` | `data/SAT-reports/` | Directory containing SAT report JSON files |
-| `--out-dir DIR` | `data/enriched/` | Output directory for per-language parquet files |
+| Option              | Default             | Description                                     |
+| ------------------- | ------------------- | ----------------------------------------------- |
+| `--merged-dir DIR`  | `data/merged/`      | Directory containing merged parquet files       |
+| `--reports-dir DIR` | `data/SAT-reports/` | Directory containing SAT report JSON files      |
+| `--out-dir DIR`     | `data/enriched/`    | Output directory for per-language parquet files |
 
 Reads every `*.parquet` in `data/merged/` and every language-named `*.json` in `data/SAT-reports/`, then writes one parquet per language with one additional list-valued column per tool that ran for that language.
 
@@ -420,63 +424,66 @@ uv run python main.py fusion [OPTIONS]
 # aliases: fuse, f, analyze
 ```
 
-Canonicalises CWE IDs to the direct children of CWE-1000 pillars (primary-path rule), calibrates per-(tool, family) reliability with exact matching, and runs every fusion strategy under stratified k-fold cross-validation. Results are written to `data/results/<lang>/pillar_child/`.
+Canonicalises CWE IDs to the direct children of CWE-1000 pillars (primary-path rule), calibrates per-(tool, family) reliability with exact matching, and runs every fusion strategy under stratified k-fold cross-validation. Results are written to `data/results/<lang>/pillar_child/<tier>/`.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--lang LANG` | `all` | Language: `c`, `java`, `python`, or `all` |
-| `--exclude TOOL1,...` | none | Comma-separated tools to drop from the ensemble |
-| `--n-splits N` | `5` | Number of cross-validation folds |
-| `--tier TIER` | `base` | Analysis tier (see below) |
-| `--min-cwe-count M` | set by `--tier` | Override the tier's family support floor |
-| `--threshold K` | `2` | K for the traditional K-of-N voting baseline |
-| `--calibration M1,...` | all pairs | Calibration metric pairs to include: `ppv`, `npv`, `sensitivity`, `specificity`, `fpr`, `fnr` |
-| `--taumin T` | `0.1` | Lower bound of the τ sweep grid |
-| `--taumax T` | `0.9` | Upper bound of the τ sweep grid |
-| `--seed S` | `42` | Random seed for fold assignment |
+| Option                 | Default         | Description                                                                                   |
+| ---------------------- | --------------- | --------------------------------------------------------------------------------------------- |
+| `--lang LANG`          | `all`           | Language: `c`, `java`, `python`, or `all`                                                     |
+| `--exclude TOOL1,...`  | none            | Comma-separated tools to drop from the ensemble                                               |
+| `--n-splits N`         | `5`             | Number of cross-validation folds                                                              |
+| `--tier TIER`          | `base`          | Analysis tier (see below)                                                                     |
+| `--min-cwe-count M`    | set by `--tier` | Override the tier's family support floor                                                      |
+| `--threshold K`        | `2`             | K for the traditional K-of-N voting baseline                                                  |
+| `--calibration M1,...` | all pairs       | Calibration metric pairs to include: `ppv`, `npv`, `sensitivity`, `specificity`, `fpr`, `fnr` |
+| `--taumin T`           | `0.1`           | Lower bound of the τ sweep grid                                                               |
+| `--taumax T`           | `0.9`           | Upper bound of the τ sweep grid                                                               |
+| `--seed S`             | `42`            | Random seed for fold assignment                                                               |
+| `--pvalues`            | off             | Show p-values above whiskers/error bars in the plot                                           |
 
 #### Analysis tiers
 
 The `--tier` flag controls two things simultaneously: the minimum number of ground-truth occurrences required to include a CWE family, and which ML-based strategies are activated.
 
-| Tier | Family support floor | ML strategies added | Use when |
-|------|---------------------|---------------------|----------|
-| `base` | ≥ n\_splits (default 5) | none | Maximum CWE coverage; existing strategies only |
-| `medium` | ≥ 30 | Decision Tree | Balanced coverage + one ML baseline |
-| `full` | ≥ 100 | Decision Tree + Random Forest + Gradient Boosting | Highest-confidence families only; full ML comparison |
+| Tier     | Family support floor   | ML strategies added                               | Use when                                             |
+| -------- | ---------------------- | ------------------------------------------------- | ---------------------------------------------------- |
+| `base`   | ≥ n_splits (default 5) | none                                              | Maximum CWE coverage; existing strategies only       |
+| `medium` | ≥ 30                   | Decision Tree                                     | Balanced coverage + one ML baseline                  |
+| `full`   | ≥ 100                  | Decision Tree + Random Forest + Gradient Boosting | Highest-confidence families only; full ML comparison |
 
 The ML classifiers use tool fire indicators (one binary feature per tool) as input and are trained on the calibration split of each fold. Class imbalance is handled via `class_weight='balanced'` (DT, RF) or inverse-frequency sample weights (GB), replacing SMOTE which is inapplicable on binary feature spaces. Hyperparameters are adapted from D'Abruzzo Pereira et al. (2024) to the 4-binary-feature regime of FEAST (see `analysis/fusion/ml.py`).
 
 `--min-cwe-count` overrides the tier's support floor if you need a custom threshold. The tier still determines which ML strategies are included.
 
-**Outputs** written to `data/results/<lang>/pillar_child/`:
+**Outputs** written to `data/results/<lang>/pillar_child/<tier>/`:
 
-| File | Description |
-|------|-------------|
-| `config.json` | All experiment parameters |
-| `canonical_map.csv` | Raw CWE → canonical family mapping |
-| `folds.csv` | Per-row fold assignment |
-| `calibration_reliability.csv` | Per-(tool, family, fold): TP/FP/TN/FN, PPV, NPV, FPR, FNR, sensitivity, specificity |
-| `fusion_metrics_per_family.csv` | Per-(strategy, family): precision, recall, F1, F2, MCC, ROC-AUC (mean over folds) |
-| `fusion_metrics_overall.csv` | Support-weighted aggregate per strategy |
-| `fusion_detection_overall.csv` | Vuln/safe binary detection metrics per strategy |
-| `fusion_tau_sweep.csv` | All (base\_strategy, τ) combinations |
-| `fusion_operating_points.csv` | Best-MCC τ per strategy |
-| `plots/` | Per-metric bar charts and per-family performance plots |
+| File                                     | Description                                                                         |
+| ---------------------------------------- | ----------------------------------------------------------------------------------- |
+| `config.json`                            | All experiment parameters                                                           |
+| `canonical_map.csv`                      | Raw CWE → canonical family mapping                                                  |
+| `folds.csv`                              | Per-row fold assignment                                                             |
+| `calibration_reliability.csv`            | Per-(tool, family, fold): TP/FP/TN/FN, PPV, NPV, FPR, FNR, sensitivity, specificity |
+| `fusion_metrics_per_family_per_fold.csv` | Per-(strategy, family, fold) metrics for each fold                                  |
+| `fusion_metrics_per_family.csv`          | Per-(strategy, family) mean metrics over folds                                      |
+| `fusion_metrics_overall.csv`             | Support-weighted aggregate per strategy                                             |
+| `fusion_detection_overall.csv`           | Vuln/safe binary detection metrics per strategy                                     |
+| `fusion_tau_sweep.csv`                   | All (base_strategy, τ) combinations                                                 |
+| `fusion_operating_points.csv`            | Best-MCC τ per strategy                                                             |
+| `plots/`                                 | Per-metric bar charts, best variants, and per-family plots                          |
+| `ablation/`                              | Tool-count and dataset-size ablation data (if scaling runs were executed)           |
 
 **Fusion strategies** included in every tier:
 
-| Strategy | Type |
-|----------|------|
-| `tool:<name>` | Single-tool baseline (one per tool) |
-| `or_1_of_N` | OR of all tools |
-| `traditional_K_of_N` | K-of-N majority vote |
-| `weighted_fire_<fire>_silence_<silence>` | Reliability-weighted voting (3 metric pairs) |
-| `dst_<rule>_fire_<fire>_silence_<silence>` | Dempster-Shafer (Dempster, PCR6, Yager × 3 pairs) |
-| `naive_bayes` | Naive Bayes over log-likelihood ratios |
-| `bks` | Behavior-Knowledge Space (empirical pattern lookup) |
-| `logistic_regression` | Per-family logistic regression on fire indicators |
-| `logistic_interactions` | Same + pairwise tool-interaction features |
+| Strategy                                   | Type                                                |
+| ------------------------------------------ | --------------------------------------------------- |
+| `tool:<name>`                              | Single-tool baseline (one per tool)                 |
+| `or_1_of_N`                                | OR of all tools                                     |
+| `traditional_K_of_N`                       | K-of-N majority vote                                |
+| `weighted_fire_<fire>_silence_<silence>`   | Reliability-weighted voting (3 metric pairs)        |
+| `dst_<rule>_fire_<fire>_silence_<silence>` | Dempster-Shafer (Dempster, PCR6, Yager × 3 pairs)   |
+| `naive_bayes`                              | Naive Bayes over log-likelihood ratios              |
+| `bks`                                      | Behavior-Knowledge Space (empirical pattern lookup) |
+| `logistic_regression`                      | Per-family logistic regression on fire indicators   |
+| `logistic_interactions`                    | Same + pairwise tool-interaction features           |
 
 **Examples:**
 
@@ -501,6 +508,9 @@ uv run python main.py fusion --lang python --tier full --min-cwe-count 50
 
 # restrict calibration metrics
 uv run python main.py fusion --lang python --calibration ppv,npv
+
+# run base tier and show p-values on plot
+uv run python main.py fusion --lang python --tier base --pvalues
 ```
 
 ### `diagnose` — tool-complementarity diagnostics (Stage 5b)
@@ -510,15 +520,16 @@ uv run python main.py diagnose [OPTIONS]
 # alias: diag
 ```
 
-Runs tool-complementarity diagnostics on the same canonicalised data used by `fusion`: oracle/coverage headroom, error diversity, per-(tool, family) reliability heatmap, and cross-validated marginal contribution and conditional value per tool. Outputs are written to `data/results/<lang>/pillar_child/diagnostics/`.
+Runs tool-complementarity diagnostics on the same canonicalised data used by `fusion`: oracle/coverage headroom, error diversity, per-(tool, family) reliability heatmap, and cross-validated marginal contribution and conditional value per tool. Outputs are written to `data/results/<lang>/pillar_child/<tier>/diagnostics/`.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--lang LANG` | `all` | Language: `c`, `java`, `python`, or `all` |
-| `--exclude TOOL1,...` | none | Comma-separated tools to exclude |
-| `--n-splits N` | `5` | Number of cross-validation folds |
-| `--min-cwe-count M` | `= n_splits` | Min GT occurrences per family |
-| `--seed S` | `42` | Random seed |
+| Option                | Default      | Description                               |
+| --------------------- | ------------ | ----------------------------------------- |
+| `--lang LANG`         | `all`        | Language: `c`, `java`, `python`, or `all` |
+| `--tier TIER`         | `base`       | Tier folder to read results from          |
+| `--exclude TOOL1,...` | none         | Comma-separated tools to exclude          |
+| `--n-splits N`        | `5`          | Number of cross-validation folds          |
+| `--min-cwe-count M`   | `= n_splits` | Min GT occurrences per family             |
+| `--seed S`            | `42`         | Random seed                               |
 
 **Examples:**
 
@@ -533,3 +544,122 @@ uv run python main.py diagnose --lang python
 uv run python main.py diagnose --lang python --exclude devaic
 ```
 
+### `plots` — regenerate plots from existing CSV results
+
+```bash
+uv run python main.py plots [OPTIONS]
+# aliases: replot, plot
+```
+
+Regenerates all plots and the combined CI reports using the existing fusion output CSVs without repeating the cross-validation or fusion pipeline. Outputs are saved to `data/results/<lang>/pillar_child/<tier>/plots/` (as well as combined figures under `data/results/`).
+
+| Option               | Default        | Description                                                       |
+| -------------------- | -------------- | ----------------------------------------------------------------- |
+| `--lang LANG`        | `all`          | Language: `c`, `java`, `python`, or `all`                         |
+| `--tier TIER`        | `base`         | Tier folder containing the source CSV files: `base, medium, full` |
+| `--results-dir DIR`  | `data/results` | Root results directory                                            |
+| `--pvalues`          | off            | Show p-values above whiskers/error bars in the plot               |
+
+**Examples:**
+
+```bash
+# replot base tier python results
+uv run python main.py plots --lang python --tier base
+
+# replot full tier for all languages and overlay pvalues
+uv run python main.py plots --tier full --pvalues
+```
+
+### `scaling-coverage` — cross-language tool coverage analysis (Stage 5c)
+
+```bash
+uv run python main.py scaling-coverage [OPTIONS]
+# alias: scov
+```
+
+Lays each language's union (OR) recall and oracle headroom side by side against its dataset-level covariates to see whether performance differences correlate with collective tool coverage. Writes to `data/results/_cross_language/coverage.csv`.
+
+| Option          | Default | Description                                              |
+| --------------- | ------- | -------------------------------------------------------- |
+| `--lang LANG`   | `all`   | Language to analyze: `c`, `java`, `python`, or `all`     |
+| `--tier TIER`   | `full`  | Tier subdirectory to read covariates from                |
+| `--n-splits N`  | `5`     | Number of cross-validation folds                         |
+| `--seed S`      | `42`    | Random seed for fold assignment                          |
+
+**Examples:**
+
+```bash
+uv run python main.py scaling-coverage --tier full
+```
+
+### `scaling-tools` — tool count ablation (Stage 5c)
+
+```bash
+uv run python main.py scaling-tools [OPTIONS]
+# alias: stools
+```
+
+Subsamples and re-runs the fusion pipeline on every tool subset combination of size $k = 2..N$ within a language, measuring fusion F1 against tool pool size. Writes outputs to `data/results/<lang>/pillar_child/<tier>/ablation/by_n_tools.csv`.
+
+| Option           | Default | Description                                                               |
+| ---------------- | ------- | ------------------------------------------------------------------------- |
+| `--lang LANG`    | `all`   | Language: `c`, `java`, `python`, or `all`                                 |
+| `--tier TIER`    | `full`  | Analysis tier to run scaling on                                           |
+| `--sizes K1,K2`  | `2..N`  | Comma-separated subset sizes to evaluate                                  |
+| `--max-combos M` | all     | Cap of combinations evaluated per size                                    |
+| `--n-splits N`   | `5`     | Number of cross-validation folds                                          |
+| `--threshold K`  | `2`     | K for the traditional K-of-N voting baseline                              |
+| `--seed S`       | `42`    | Random seed                                                               |
+
+**Examples:**
+
+```bash
+# run tool ablation on Python full tier
+uv run python main.py scaling-tools --lang python --tier full
+```
+
+### `scaling-data` — dataset size ablation learning curves (Stage 5c)
+
+```bash
+uv run python main.py scaling-data [OPTIONS]
+# alias: sdata
+```
+
+Subsamples the enriched samples across a grid of fractions and re-runs the fusion pipeline to see how performance scales with dataset size. Writes outputs to `data/results/<lang>/pillar_child/<tier>/ablation/by_dataset_size.csv`.
+
+| Option              | Default                | Description                                                |
+| ------------------- | ---------------------- | ---------------------------------------------------------- |
+| `--lang LANG`       | `all`                  | Language: `c`, `java`, `python`, or `all`                  |
+| `--tier TIER`       | `full`                 | Analysis tier to run scaling on                            |
+| `--fractions F1,F2` | `0.1,0.25,0.5,0.75,1.0` | Row fractions of the dataset to evaluate                   |
+| `--repeats R`       | `3`                    | Subsamples evaluated per fraction (different seeds)        |
+| `--n-splits N`      | `5`                    | Number of cross-validation folds                           |
+| `--threshold K`     | `2`                    | K for the traditional K-of-N voting baseline               |
+| `--seed S`          | `42`                   | Base random seed                                           |
+
+**Examples:**
+
+```bash
+# run dataset size ablation for python
+uv run python main.py scaling-data --lang python --tier full
+```
+
+### `scaling-meta` — cross-language meta-regression (Stage 5c)
+
+```bash
+uv run python main.py scaling-meta [OPTIONS]
+# alias: smeta
+```
+
+Stacks every (family, fold) fusion lift with its dataset-level covariates and fits a linear mixed-effects model (with a random intercept on CWE family) alongside within-language ablation regressions. Writes outputs to `data/results/_cross_language/meta_regression/`.
+
+| Option        | Default | Description                                                    |
+| ------------- | ------- | -------------------------------------------------------------- |
+| `--lang LANG` | `all`   | Languages to include: `all` or a single language slug          |
+| `--tier TIER` | `full`  | Tier subdirectory to read results from                         |
+
+**Examples:**
+
+```bash
+uv run python main.py scaling-meta --tier full
+```
