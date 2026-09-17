@@ -1,4 +1,4 @@
-"""Compares three CWE matching schemes through the K-of-N voting baseline only.
+"""Compares two CWE matching schemes through the K-of-N voting baseline only.
 
 Motivation: Reviewer #2's Major Concern #4 argues that pillar_child normalisation
 (collapsing raw CWEs to a common family before matching) lowers the detection bar by
@@ -11,21 +11,24 @@ the variable of interest more cleanly than a calibrated strategy would. This ans
 matching-rule choice matter for voting", not "for every fusion strategy" -- a scope that
 should be stated explicitly wherever these numbers are used.
 
-Three matching schemes, nested by construction (exact subset-of vertical subset-of family):
-  - "exact"    : a tool's fire counts toward ground-truth family c only if its specific raw
-                 CWE literally equals one of the row's ground-truth raw CWEs.
-  - "vertical" : exact, plus credit when the tool's raw CWE is an ancestor or descendant of
-                 a ground-truth raw CWE along the CWE-1000 primary path (Problem 2 case:
-                 same weakness, different granularity).
-  - "family"   : the paper's current method -- any raw CWE that canonicalises to family c
-                 counts, regardless of its relation to the specific ground-truth CWE.
-For safe (label=0) rows there is no ground-truth CWE to match against, so all three
-schemes behave identically there (a fire is a fire, full stop); they can only differ on
-vulnerable rows.
+Two matching schemes, nested by construction (exact subset-of family):
+  - "exact"  : a tool's fire counts toward ground-truth family c only if its specific raw
+               CWE literally equals one of the row's ground-truth raw CWEs -- matching the
+               reviewer's own suggested control condition.
+  - "family" : the paper's current method -- any raw CWE that canonicalises to family c
+               counts, regardless of its relation to the specific ground-truth CWE.
+For safe (label=0) rows there is no ground-truth CWE to match against, so both schemes
+behave identically there (a fire is a fire, full stop); they can only differ on vulnerable
+rows.
+
+(An earlier version of this script also carried an intermediate "vertical" scheme --
+ancestor/descendant of the ground-truth CWE along the CWE-1000 primary path, the Problem 2
+granularity case -- dropped here per the authors' decision. Its removal does not change
+what "exact" or "family" compute; those two are unaffected by that code.)
 
 Study population: restricted to "tool-disagreement" rows -- rows where the union of raw
 CWEs reported across all tool columns has at least 2 distinct values. This is the only
-subpopulation where the three schemes can plausibly disagree; including agreement rows
+subpopulation where the two schemes can plausibly disagree; including agreement rows
 would just dilute the comparison with cases where the answer is identical regardless of
 scheme.
 
@@ -54,7 +57,7 @@ from analysis.canonical import CweCanonicalizer
 from analysis.dataset import as_list, detect_tool_columns
 from analysis.fusion.predictions import binary_metrics
 
-SCHEMES = ("exact", "vertical", "family")
+SCHEMES = ("exact", "family")
 
 
 def _is_vertical(tool_cwe: str, gt_raw: set[str], canon: CweCanonicalizer) -> bool:
@@ -188,7 +191,7 @@ def main() -> None:
             per_family = per_family.assign(strategy=scheme)
             overall = support_weighted_over_families(per_family, metric_columns=REPORT_METRICS)
             row = {"language": lang, "scheme": scheme}
-            for metric in ("precision", "recall", "f1", "pr_auc"):
+            for metric in ("f1", "pr_auc"):
                 row[metric] = overall.iloc[0].get(f"{metric}_weighted")
             headline_rows.append(row)
 
