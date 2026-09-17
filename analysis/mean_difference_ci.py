@@ -385,6 +385,7 @@ def _strategy_label(strategy: str) -> str:
             "decision_tree": "Decision Tree",
             "random_forest": "Random Forest",
             "gradient_boosting": "Gradient Boosting",
+            "xgboost": "XGBoost",
             "naive_bayes": "Naive Bayes",
             "logistic_interactions": "Logistic Interactions",
             "bks": "BKS",

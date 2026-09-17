@@ -38,6 +38,18 @@ the 4-binary-feature, 30–900 samples/family regime of FEAST):
     min_samples_leaf=3
     min_samples_split=5
     subsample=0.8      not in paper; stochastic row subsampling further reduces overfit
+
+  XGBoost — tier: full (≥100 GT occurrences)
+    Same shallow/regularised configuration as Gradient Boosting above, ported to the
+    xgboost.XGBClassifier sklearn API (added to check whether XGBoost's engineering
+    improvements over sklearn's GB -- histogram split finding, native missing-value
+    handling, leaf-weight L1/L2 -- change anything on a <=6-binary-feature, 30-900
+    row regime; none of those improvements target this regime, so results are
+    expected to track Gradient Boosting closely):
+    n_estimators=50, learning_rate=0.1, max_depth=2, subsample=0.8
+    colsample_bytree=max_features/len(tools)  (XGBoost takes a fraction, not a count)
+    reg_lambda=1.0 (default L2; kept explicit since it has no sklearn-GB analogue)
+    sample_weight=inverse-frequency (no native class_weight, same as Gradient Boosting)
 """
 
 from __future__ import annotations
@@ -235,6 +247,64 @@ def gradient_boosting_predictions(
         for ri in range(n_val):
             rows.append(evidence_row(
                 sample_ids[ri], ri, family, "gradient_boosting",
+                prediction=bool(score[ri] >= tau), score=float(score[ri]),
+                vuln=float(score[ri]), safe=float(1.0 - score[ri]),
+                k_supported=len(tools), k_fired=int(fired_counts[ri]), k_abstained=0,
+                label=labels[(ri, family)],
+            ))
+    return pd.DataFrame(rows)
+
+
+# ── XGBoost ──────────────────────────────────────────────────────────────────
+
+def xgboost_predictions(
+    calibration_df: pd.DataFrame,
+    validation_df: pd.DataFrame,
+    tools: Sequence[str],
+    families: Sequence[str],
+    labels: dict[tuple[int, str], bool],
+    fire_index: tuple[dict[tuple[int, str], set[str]], list[set[str]]],
+    tau: float = 0.5,
+    seed: int = 0,
+) -> pd.DataFrame:
+    from xgboost import XGBClassifier
+
+    cal_fire, _ = build_fire_index(calibration_df, tools)
+    val_fire, _ = fire_index
+    cal_labels = precompute_labels(calibration_df, families)
+    sample_ids = sample_ids_of(validation_df)
+    n_cal, n_val = len(calibration_df), len(validation_df)
+    colsample_bytree = min(2, len(tools)) / len(tools)
+
+    rows: list[dict] = []
+    for family in families:
+        x_cal = _build_feature_matrix(cal_fire, n_cal, tools, family)
+        y_cal = np.array([int(cal_labels[(i, family)]) for i in range(n_cal)])
+        x_val = _build_feature_matrix(val_fire, n_val, tools, family)
+        fired_counts = x_val.sum(axis=1).astype(int)
+
+        if len(np.unique(y_cal)) < 2:
+            score = _fallback_score(y_cal, n_val)
+        else:
+            clf = XGBClassifier(
+                n_estimators=50,
+                learning_rate=0.1,
+                max_depth=2,
+                subsample=0.8,
+                colsample_bytree=colsample_bytree,
+                reg_lambda=1.0,
+                min_child_weight=3,  # closest XGBoost analogue to min_samples_leaf=3
+                objective="binary:logistic",
+                eval_metric="logloss",
+                random_state=seed,
+                n_jobs=1,
+            )
+            clf.fit(x_cal, y_cal, sample_weight=_balanced_sample_weight(y_cal))
+            score = clf.predict_proba(x_val)[:, 1]
+
+        for ri in range(n_val):
+            rows.append(evidence_row(
+                sample_ids[ri], ri, family, "xgboost",
                 prediction=bool(score[ri] >= tau), score=float(score[ri]),
                 vuln=float(score[ri]), safe=float(1.0 - score[ri]),
                 k_supported=len(tools), k_fired=int(fired_counts[ri]), k_abstained=0,

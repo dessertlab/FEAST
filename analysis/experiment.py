@@ -190,7 +190,7 @@ def run_language_level(
     ``tier`` controls both the minimum family support and the ML strategy set:
       base   — min_cwe_count default (= n_splits); existing strategies only
       medium — min_cwe_count = 30; adds Decision Tree
-      full   — min_cwe_count = 100; adds Decision Tree + Random Forest + Gradient Boosting
+      full   — min_cwe_count = 100; adds Decision Tree + Random Forest + Gradient Boosting + XGBoost
 
     An explicit ``min_cwe_count`` overrides the tier's default floor.
     """

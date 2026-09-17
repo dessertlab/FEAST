@@ -18,6 +18,7 @@ from analysis.fusion.ml import (
     decision_tree_predictions,
     gradient_boosting_predictions,
     random_forest_predictions,
+    xgboost_predictions,
 )
 from analysis.fusion.common import (
     metric_pairs_for_calibration,
@@ -79,7 +80,7 @@ def run_fusion(
     ``tier`` controls which ML strategies are included:
       base   — existing strategies only (BKS, logistic, weighted, DST, etc.)
       medium — adds Decision Tree (requires ≥30 GT occurrences, enforced upstream)
-      full   — adds Decision Tree + Random Forest + Gradient Boosting (≥100 GT occ.)
+      full   — adds Decision Tree + Random Forest + Gradient Boosting + XGBoost (≥100 GT occ.)
     """
     metric_pairs = metric_pairs_for_calibration(calibration_metrics)
     weighted_strategies = tuple(WeightedVotingStrategy(fire, silence) for fire, silence in metric_pairs)
@@ -132,5 +133,7 @@ def run_fusion(
             random_forest_predictions(calibration_df, validation_df, tools, families, labels, fire_index, seed=seed))
         scored_fuser_frames.append(
             gradient_boosting_predictions(calibration_df, validation_df, tools, families, labels, fire_index, seed=seed))
+        scored_fuser_frames.append(
+            xgboost_predictions(calibration_df, validation_df, tools, families, labels, fire_index, seed=seed))
     scored_fusers = expand_tau_variants(pd.concat(scored_fuser_frames, ignore_index=True), taus=taus)
     return pd.concat([*baseline_frames, scored_fusers], ignore_index=True)

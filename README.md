@@ -66,7 +66,7 @@ FEAST/
 │       ├── bayes.py                 # naive Bayes over log-likelihood ratios
 │       ├── bks.py                   # Behavior-Knowledge Space (empirical pattern lookup)
 │       ├── logistic.py              # per-family logistic regression (+ pairwise interactions)
-│       ├── ml.py                    # Decision Tree, Random Forest, Gradient Boosting
+│       ├── ml.py                    # Decision Tree, Random Forest, Gradient Boosting, XGBoost
 │       └── predictions.py           # evaluation helpers and tau-variant expansion
 ├── notebooks/
 │   ├── 00_download_datasets.ipynb   # Stage 0 – download
@@ -443,7 +443,7 @@ The `--tier` flag controls two things simultaneously: the minimum number of grou
 |------|---------------------|---------------------|----------|
 | `base` | ≥ n\_splits (default 5) | none | Maximum CWE coverage; existing strategies only |
 | `medium` | ≥ 30 | Decision Tree | Balanced coverage + one ML baseline |
-| `full` | ≥ 100 | Decision Tree + Random Forest + Gradient Boosting | Highest-confidence families only; full ML comparison |
+| `full` | ≥ 100 | Decision Tree + Random Forest + Gradient Boosting + XGBoost | Highest-confidence families only; full ML comparison |
 
 The ML classifiers use tool fire indicators (one binary feature per tool) as input and are trained on the calibration split of each fold. Class imbalance is handled via `class_weight='balanced'` (DT, RF) or inverse-frequency sample weights (GB), replacing SMOTE which is inapplicable on binary feature spaces. Hyperparameters are adapted from D'Abruzzo Pereira et al. (2024) to the 4-binary-feature regime of FEAST (see `analysis/fusion/ml.py`).
 
