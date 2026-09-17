@@ -1,4 +1,4 @@
-"""Compares two CWE matching schemes through the K-of-N voting baseline only.
+"""Compares three CWE matching schemes through the K-of-N voting baseline only.
 
 Motivation: Reviewer #2's Major Concern #4 argues that pillar_child normalisation
 (collapsing raw CWEs to a common family before matching) lowers the detection bar by
@@ -11,24 +11,33 @@ the variable of interest more cleanly than a calibrated strategy would. This ans
 matching-rule choice matter for voting", not "for every fusion strategy" -- a scope that
 should be stated explicitly wherever these numbers are used.
 
-Two matching schemes, nested by construction (exact subset-of family):
-  - "exact"  : a tool's fire counts toward ground-truth family c only if its specific raw
-               CWE literally equals one of the row's ground-truth raw CWEs -- matching the
-               reviewer's own suggested control condition.
-  - "family" : the paper's current method -- any raw CWE that canonicalises to family c
-               counts, regardless of its relation to the specific ground-truth CWE.
-For safe (label=0) rows there is no ground-truth CWE to match against, so both schemes
-behave identically there (a fire is a fire, full stop); they can only differ on vulnerable
-rows.
+Three matching schemes, nested by construction (exact subset-of exact_or_direct_child
+subset-of family):
+  - "exact"                 : a tool's fire counts toward ground-truth family c only if
+                               its specific raw CWE literally equals one of the row's
+                               ground-truth raw CWEs.
+  - "exact_or_direct_child" : the reviewer's own suggested control condition, verbatim --
+                               "exactly matches the ground-truth CWE (or a direct child),
+                               without parent absorption." Directional and distance-limited
+                               (see _is_direct_child): only a tool CWE that is MORE SPECIFIC
+                               than the ground truth by exactly one primary-path level
+                               counts in addition to exact; a tool reporting the ground
+                               truth's parent does not count.
+  - "family"                : the paper's current method -- any raw CWE that canonicalises
+                               to family c counts, regardless of its relation to the
+                               specific ground-truth CWE.
+For safe (label=0) rows there is no ground-truth CWE to match against, so all three
+schemes behave identically there (a fire is a fire, full stop); they can only differ on
+vulnerable rows.
 
-(An earlier version of this script also carried an intermediate "vertical" scheme --
-ancestor/descendant of the ground-truth CWE along the CWE-1000 primary path, the Problem 2
-granularity case -- dropped here per the authors' decision. Its removal does not change
-what "exact" or "family" compute; those two are unaffected by that code.)
+(An earlier version of this script also carried a "vertical" scheme -- symmetric,
+unbounded-distance ancestor/descendant matching -- dropped per the authors' decision.
+"exact_or_direct_child" is narrower and directional by design, matching the reviewer's
+literal wording rather than the broader vertical-closure notion.)
 
 Study population: restricted to "tool-disagreement" rows -- rows where the union of raw
 CWEs reported across all tool columns has at least 2 distinct values. This is the only
-subpopulation where the two schemes can plausibly disagree; including agreement rows
+subpopulation where the three schemes can plausibly disagree; including agreement rows
 would just dilute the comparison with cases where the answer is identical regardless of
 scheme.
 
@@ -57,7 +66,25 @@ from analysis.canonical import CweCanonicalizer
 from analysis.dataset import as_list, detect_tool_columns
 from analysis.fusion.predictions import binary_metrics
 
-SCHEMES = ("exact", "family")
+SCHEMES = ("exact", "exact_or_direct_child", "family")
+
+
+def _is_direct_child(tool_cwe: str, gt_raw: set[str], canon: CweCanonicalizer) -> bool:
+    """True iff tool_cwe is a direct (one-level) child of some ground-truth CWE.
+
+    This is the reviewer's own suggested control condition, verbatim: "exactly matches
+    the ground-truth CWE (or a direct child), without parent absorption." It is
+    directional and distance-limited, unlike the (removed) "vertical" scheme: only a
+    tool that is MORE SPECIFIC than the ground truth by exactly one primary-path level
+    counts. A tool reporting the ground truth's own parent (i.e. a more generic CWE)
+    does NOT count -- that is exactly the "parent absorption" the reviewer rules out.
+    """
+    parent = canon.nav.primary_parent(tool_cwe)
+    if parent is None:
+        return False
+    norm = canon.nav._num
+    parent = norm(parent)
+    return any(norm(g) == parent for g in gt_raw)
 
 
 def _is_vertical(tool_cwe: str, gt_raw: set[str], canon: CweCanonicalizer) -> bool:
@@ -93,6 +120,9 @@ def _fired_families(
             fired.add(fam)
         elif scheme == "exact":
             if c in gt_raw:
+                fired.add(fam)
+        elif scheme == "exact_or_direct_child":
+            if c in gt_raw or _is_direct_child(c, gt_raw, canon):
                 fired.add(fam)
         elif scheme == "vertical":
             if c in gt_raw or _is_vertical(c, gt_raw, canon):
