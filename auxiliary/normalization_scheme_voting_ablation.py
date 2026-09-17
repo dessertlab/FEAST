@@ -58,9 +58,16 @@ SCHEMES = ("exact", "vertical", "family")
 
 
 def _is_vertical(tool_cwe: str, gt_raw: set[str], canon: CweCanonicalizer) -> bool:
-    t_path = set(canon.nav.primary_path(tool_cwe))
+    # CWENavigator normalises everything internally to bare numeric strings ("120", no
+    # "CWE-" prefix -- see CWENavigator._num), while every raw CWE elsewhere in this
+    # script (the "cwes"/tool columns) uses the "CWE-120" form. primary_path() returns
+    # the bare form, so comparisons must go through the same normaliser on both sides,
+    # or every "in" check below silently and permanently fails.
+    norm = canon.nav._num
+    t_num = norm(tool_cwe)
+    t_path = {norm(x) for x in canon.nav.primary_path(tool_cwe)}
     for g in gt_raw:
-        if g in t_path or tool_cwe in set(canon.nav.primary_path(g)):
+        if norm(g) in t_path or t_num in {norm(x) for x in canon.nav.primary_path(g)}:
             return True
     return False
 
