@@ -12,6 +12,10 @@ script reuses the exact same pattern definition as bks_predictions and reports, 
 (language, family), how the data population is spread across the 2^N cells -- which is
 the frequency distribution the reviewer asked to see, not a hypothesis about it.
 
+Runs on every family in the tier's restriction by default (not just the six most
+populated ones shown in Fig. 3), so the sparsity picture is not survivorship-biased
+toward the families that already have the most data; pass --top-n to restrict it.
+
 Requires data/enriched/<lang>.parquet and data/cwec_latest.xml (neither ships in the
 git repo).
 
@@ -41,7 +45,7 @@ def _pattern_bitstring(pattern: tuple[bool, ...]) -> str:
     return "".join("1" if p else "0" for p in pattern)
 
 
-def run_lang(lang: str, tier: str, top_n: int, seed: int) -> pd.DataFrame:
+def run_lang(lang: str, tier: str, top_n: int | None, seed: int) -> pd.DataFrame:
     min_cwe_count = TIER_MIN_COUNT.get(tier, 5)
     try:
         prep = prepare_canonical(lang, "pillar_child", n_splits=5, min_cwe_count=min_cwe_count, seed=seed)
@@ -56,7 +60,8 @@ def run_lang(lang: str, tier: str, top_n: int, seed: int) -> pd.DataFrame:
         return pd.DataFrame()
 
     support = gt_family_support(cdf, families)
-    top_families = sorted(families, key=lambda f: support.get(f, 0), reverse=True)[:top_n]
+    ranked = sorted(families, key=lambda f: support.get(f, 0), reverse=True)
+    top_families = ranked if top_n is None else ranked[:top_n]
 
     fire, _ = build_fire_index(cdf, tools)
     labels = precompute_labels(cdf, families)
@@ -95,7 +100,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--lang", default="java,python", help="comma-separated: java,python,c_cpp")
     ap.add_argument("--tier", default="full", choices=["base", "medium", "full"])
-    ap.add_argument("--top-n", type=int, default=6, help="most-supported families per language (matches Fig. 3)")
+    ap.add_argument("--top-n", type=int, default=None, help="restrict to the N most-supported families; default runs on every family in scope")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
