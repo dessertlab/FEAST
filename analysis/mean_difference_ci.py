@@ -139,7 +139,7 @@ def _resolve_baseline(present: set[str], baseline: str) -> str:
     return matches[0]
 
 
-def _fusion_strategies(present: Iterable[str]) -> list[str]:
+def fusion_strategies(present: Iterable[str]) -> list[str]:
     fusers = set(FUSER_ORDER)
     strategies: list[str] = []
     for strategy in present:
@@ -179,7 +179,7 @@ def _paired_difference_folds(
     return (strat[common] - base[common]).dropna().reset_index(drop=True)
 
 
-def _best_tau_per_strategy(
+def best_tau_per_strategy(
     per_family: pd.DataFrame,
     strategies: list[str],
     metric: str,
@@ -279,6 +279,7 @@ def mean_difference_ci(
     tools: Sequence[str] = (),
     best_tau_only: bool = True,
     per_family_per_fold: pd.DataFrame | None = None,
+    preselected_strategies: Sequence[str] | None = None,
 ) -> pd.DataFrame:
     """Compute paired 95% CIs for each fusion strategy against each baseline.
 
@@ -293,8 +294,16 @@ def mean_difference_ci(
     number of families) — legacy behaviour.
 
     ``best_tau_only``: when True (default) each base strategy contributes only its
-    best-mean-metric tau variant.  Tau selection always uses ``per_family`` (fold-averaged
-    per-family values) regardless of the pairing mode.
+    best-mean-metric tau variant.  Tau selection uses ``per_family`` (fold-averaged
+    per-family values) UNLESS ``preselected_strategies`` is given.
+
+    ``preselected_strategies``: tau-suffixed strategy names chosen ahead of time from
+    calibration-internal data (see ``analysis.experiment._select_tau_nested``), so the
+    selection never touches the held-out fold values being reported here. When given,
+    this replaces the ``best_tau_per_strategy`` call entirely -- ``best_tau_only`` is
+    ignored. Passing the outcome of a proper nested split closes the "which held-out
+    data selected tau" question raised in review: tau is fixed before ``per_family`` (or
+    ``per_family_per_fold``) is ever consulted for anything other than reporting.
     """
     required = {"strategy", "family", metric}
     missing = required - set(per_family.columns)
@@ -328,10 +337,13 @@ def mean_difference_ci(
             resolved = [(name, _resolve_baseline(present, name)) for name in baselines]
     else:
         resolved = [(name, _resolve_baseline(present, name)) for name in baselines]
-    all_fusion = canonical_strategy_order(tools, _fusion_strategies(present))
-    strategies = (
-        _best_tau_per_strategy(per_family, all_fusion, metric) if best_tau_only else all_fusion
-    )
+    all_fusion = canonical_strategy_order(tools, fusion_strategies(present))
+    if preselected_strategies is not None:
+        strategies = list(preselected_strategies)
+    elif best_tau_only:
+        strategies = best_tau_per_strategy(per_family, all_fusion, metric)
+    else:
+        strategies = all_fusion
     strategies = canonical_strategy_order(tools, strategies)
 
     rows: list[dict] = []
@@ -733,12 +745,14 @@ def save_mean_difference_ci_report(
     best_tau_only: bool = True,
     per_family_per_fold: pd.DataFrame | None = None,
     show_pvalues: bool = False,
+    preselected_strategies: Sequence[str] | None = None,
 ) -> tuple[pd.DataFrame, list[Path]]:
     """Compute intervals, write the CSV, and save the SVG/PNG forest plot."""
     out_dir.mkdir(parents=True, exist_ok=True)
     intervals = mean_difference_ci(
         per_family, metric=metric, baselines=baselines, tools=tools,
         best_tau_only=best_tau_only, per_family_per_fold=per_family_per_fold,
+        preselected_strategies=preselected_strategies,
     )
     name = stem or f"mean_difference_ci_{metric}"
     csv_path = out_dir / f"{name}.csv"

@@ -1,23 +1,29 @@
 """Fine-grained CWE ablation: quantifies how much of the family-level detection
-signal is "exact/same-CWE" vs. "family-cousin" (same pillar_child family, but a
-different raw CWE than the one in the ground truth).
+signal is "exact/same-CWE", "vertical" (ancestor/descendant of the ground-truth
+CWE along the primary path, but not identical -- the paper's Problem 2 case), or
+a true "cousin" (same pillar_child family, but no ancestor/descendant relation at
+all to the ground-truth CWE -- e.g. CWE-79 XSS vs. CWE-89 SQLi, both -> CWE-74).
 
 Motivation: pillar_child canonicalisation (analysis/canonical.py) collapses raw
 CWEs to the direct child of their CWE-1000 pillar so that tools and ground truth
 can be matched at a common level of abstraction (see DESIGN.md and paper Sec. 3).
 This is deliberate and well-motivated for cases where multiple tools describe the
-*same* underlying weakness at different granularity (paper's Problem 2). But it
-can also credit a tool with a family-level "hit" when it actually fired a
-different, unrelated raw CWE that merely happens to share the same pillar
-ancestor as the ground truth (e.g. CWE-79 XSS vs. CWE-89 SQLi both -> CWE-74).
+*same* underlying weakness at different granularity. But it can also credit a
+tool with a family-level "hit" when it fired a genuinely different, unrelated raw
+CWE that merely happens to share the same pillar ancestor as the ground truth.
 
 This script measures, per (language, family), what fraction of family-level true
 positives are:
-  - "exact"  : the tool's fired raw CWE(s) for that family intersect the sample's
-               ground-truth raw CWE(s) for that family (same specific weakness,
-               possibly via a direct-child relation handled by normalise_cwe);
-  - "cousin" : the family matches, but no raw CWE overlap -- the tool detected a
-               different specific weakness that happens to share the pillar.
+  - "exact"    : the tool's fired raw CWE(s) intersect the ground-truth raw
+                 CWE(s) for that family (identical specific weakness);
+  - "vertical" : not exact, but some fired CWE is an ancestor or descendant of
+                 some ground-truth CWE along the CWE-1000 primary path (same
+                 weakness, different granularity -- the paper's Problem 2 case,
+                 the intended justification for family-level matching);
+  - "cousin"   : the family matches, but no raw CWE overlap and no ancestor/
+                 descendant relation either -- the tool detected a genuinely
+                 different weakness that only shares the pillar ancestor. This is
+                 the only bucket that represents evaluation-bar inflation.
 
 Run per language (requires data/enriched/<lang>.parquet and data/cwec_latest.xml,
 neither of which ship in the git repo -- regenerate via `main.py enrich` after
@@ -42,6 +48,16 @@ if str(ROOT) not in sys.path:
 
 from analysis.canonical import CweCanonicalizer
 from analysis.dataset import as_list, detect_tool_columns
+
+
+def _is_vertical(tool_raw: set[str], gt_raw: set[str], canon: CweCanonicalizer) -> bool:
+    """True iff some tool CWE and some GT CWE are ancestor/descendant of each other."""
+    for t in tool_raw:
+        t_path = set(canon.nav.primary_path(t))
+        for g in gt_raw:
+            if g in t_path or t in set(canon.nav.primary_path(g)):
+                return True
+    return False
 
 
 def run_lang(lang: str, min_family_count: int | None, xml_path: Path) -> pd.DataFrame:
@@ -91,20 +107,31 @@ def run_lang(lang: str, min_family_count: int | None, xml_path: Path) -> pd.Data
                 tool_raw_set = tool_raw_by_family.get(fam)
                 if not tool_raw_set:
                     continue  # tool did not fire this family -> not a TP, irrelevant here
-                exact = bool(tool_raw_set & gt_raw_set)
-                rows.append({"language": lang, "tool": tool, "family": fam, "exact": exact})
+                if tool_raw_set & gt_raw_set:
+                    bucket = "exact"
+                elif _is_vertical(tool_raw_set, gt_raw_set, canon):
+                    bucket = "vertical"
+                else:
+                    bucket = "cousin"
+                rows.append({"language": lang, "tool": tool, "family": fam, "bucket": bucket})
 
     if not rows:
         return pd.DataFrame()
 
     hits = pd.DataFrame(rows)
     per_family = (
-        hits.groupby(["language", "family"])
-        .agg(n_family_tp=("exact", "size"), n_exact=("exact", "sum"))
+        hits.groupby(["language", "family", "bucket"])
+        .size()
+        .unstack(fill_value=0)
+        .reindex(columns=["exact", "vertical", "cousin"], fill_value=0)
         .reset_index()
     )
-    per_family["n_cousin"] = per_family["n_family_tp"] - per_family["n_exact"]
-    per_family["pct_exact"] = (per_family["n_exact"] / per_family["n_family_tp"] * 100).round(1)
+    per_family["n_family_tp"] = per_family[["exact", "vertical", "cousin"]].sum(axis=1)
+    per_family = per_family.rename(columns={"exact": "n_exact", "vertical": "n_vertical", "cousin": "n_cousin"})
+    per_family["pct_exact_or_vertical"] = (
+        (per_family["n_exact"] + per_family["n_vertical"]) / per_family["n_family_tp"] * 100
+    ).round(1)
+    per_family["pct_cousin"] = (per_family["n_cousin"] / per_family["n_family_tp"] * 100).round(1)
     return per_family.sort_values("n_family_tp", ascending=False)
 
 
@@ -123,17 +150,30 @@ def main() -> None:
         print("\nNo data available -- see the missing-file messages above.")
         return
 
-    print("\n=== Per-family exact vs. cousin family-level TPs ===")
+    print("\n=== Per-family exact / vertical / cousin family-level TPs ===")
     print(result.to_string(index=False))
 
     print("\n=== Overall summary per language ===")
     overall = (
         result.groupby("language")
-        .agg(n_family_tp=("n_family_tp", "sum"), n_exact=("n_exact", "sum"), n_cousin=("n_cousin", "sum"))
+        .agg(
+            n_family_tp=("n_family_tp", "sum"),
+            n_exact=("n_exact", "sum"),
+            n_vertical=("n_vertical", "sum"),
+            n_cousin=("n_cousin", "sum"),
+        )
         .reset_index()
     )
-    overall["pct_exact"] = (overall["n_exact"] / overall["n_family_tp"] * 100).round(1)
+    overall["pct_exact_or_vertical"] = (
+        (overall["n_exact"] + overall["n_vertical"]) / overall["n_family_tp"] * 100
+    ).round(1)
+    overall["pct_cousin"] = (overall["n_cousin"] / overall["n_family_tp"] * 100).round(1)
     print(overall.to_string(index=False))
+    print(
+        "\npct_cousin is the quantity of interest for Reviewer #2's Major Concern #4: "
+        "the fraction of family-level true positives that reflect a genuinely different, "
+        "unrelated weakness rather than the same one at a different granularity."
+    )
 
     out_path = ROOT / "data" / "results" / "_cross_language" / "cwe_conflation_ablation.csv"
     out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -15,6 +15,7 @@ from typing import Iterable
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import average_precision_score
 
 from analysis.dataset import as_list
 from analysis.fusion.common import DEFAULT_TAUS, split_tau_strategy, tau_suffix
@@ -47,17 +48,20 @@ def _roc_auc(labels: list[bool], scores: list[float]) -> float | None:
 
 
 def _average_precision(labels: list[bool], scores: list[float]) -> float | None:
+    """Average precision (PR-AUC), delegated to sklearn for correct tie handling.
+
+    A hand-rolled version of this (rank-by-score, average precision at each positive)
+    silently mis-handles score ties: with a plain stable sort, tied samples are broken
+    by incidental row order rather than treated as a single block, making the result
+    order-dependent. Ties are the norm here, not an edge case -- every fusion score is a
+    deterministic function of an at-most-2^N-valued binary tool-fire vector (N <= 6), so
+    many same-family samples share an identical score. sklearn's implementation groups
+    tied scores correctly.
+    """
     n_pos = sum(labels)
     if n_pos == 0:
         return None
-    ordered = sorted(zip(scores, labels, strict=False), key=lambda item: item[0], reverse=True)
-    tp = 0
-    precisions = []
-    for rank, (_score, label) in enumerate(ordered, start=1):
-        if label:
-            tp += 1
-            precisions.append(tp / rank)
-    return sum(precisions) / n_pos
+    return float(average_precision_score(labels, scores))
 
 
 def binary_metrics(labels: list[bool], predictions: list[bool], scores: list[float]) -> dict:

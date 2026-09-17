@@ -21,7 +21,7 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
-from analysis.aggregation import aggregate_fusion_metrics
+from analysis.aggregation import aggregate_fusion_metrics, mean_over_folds
 from analysis.calibration import compute_reliability, gt_family_support
 from analysis.canonical import CweCanonicalizer, all_raw_cwes
 from analysis.dataset import as_list, load_enriched
@@ -35,9 +35,14 @@ from analysis.fusion import (
     order_by_strategy,
     run_fusion,
 )
-from analysis.fusion.common import metric_pairs_for_calibration, taus_in_range
+from analysis.fusion.common import (
+    canonical_strategy_order,
+    metric_pairs_for_calibration,
+    split_tau_strategy,
+    taus_in_range,
+)
 from analysis.fusion.predictions import tau_variant_table
-from analysis.mean_difference_ci import save_mean_difference_ci_report
+from analysis.mean_difference_ci import best_tau_per_strategy, fusion_strategies, save_mean_difference_ci_report
 from analysis.reporting import save_best_variant_plots, save_config, save_csv, save_strategy_plots
 
 console = Console()
@@ -167,6 +172,75 @@ def _build_operating_points(
     return pd.concat([fuser_pts, baselines], ignore_index=True)
 
 
+def _select_tau_nested(
+    cdf: pd.DataFrame,
+    folds: pd.DataFrame,
+    tools: list[str],
+    families: list[str],
+    *,
+    threshold: int,
+    seed: int,
+    calibration_metrics: list[str] | None,
+    taus: tuple[float, ...],
+    tier: str,
+    metric: str = "f1",
+    tune_splits: int = 4,
+) -> tuple[list[str], pd.DataFrame]:
+    """Pick tau for each strategy from calibration-internal data only.
+
+    For each of the 5 outer folds, ``cal_df`` (already excludes the outer held-out
+    ``val_df``) is further split into an inner ``cal_fit``/``cal_tune`` pair
+    (stratified, tune_splits=4 -> a 75/25 split). Reliability/ML models are fit on
+    ``cal_fit`` and tau is chosen, per strategy, by maximising ``metric`` on
+    ``cal_tune`` -- never on ``val_df``, which this function never touches.
+
+    Returns:
+      - ``selected_strategies``: one tau-suffixed strategy name per base strategy,
+        picked from the 5-fold-aggregated inner-tune metrics (mirrors what
+        ``best_tau_per_strategy`` does today, just fed calibration-internal data
+        instead of the held-out ``per_family`` table).
+      - ``fold_tau_choices``: the tau chosen independently in each of the 5 outer
+        folds (before aggregating across folds) -- the fold-to-fold variability of
+        tau that reviewers asked to see reported.
+    """
+    tune_frames: list[pd.DataFrame] = []
+    fold_choice_rows: list[dict] = []
+
+    for fold in sorted(folds["fold"].unique()):
+        cal_df, _val_df = split_train_validation(cdf, folds, validation_fold=fold)
+
+        inner_folds = multilabel_stratified_kfold(
+            cal_df, n_splits=tune_splits, random_state=seed * 97 + int(fold), min_cwe_count=1,
+        )
+        cal_fit, cal_tune = split_train_validation(cal_df, inner_folds, validation_fold=0)
+
+        reliability_fit = compute_reliability(cal_fit, tools, families)
+        predictions_tune = run_fusion(
+            cal_fit, cal_tune, reliability_fit, tools, families,
+            threshold=threshold, seed=seed, calibration_metrics=calibration_metrics,
+            taus=taus, tier=tier,
+        )
+        per_family_tune = evaluate_predictions(predictions_tune, group_cols=("strategy", "family"))
+        per_family_tune.insert(0, "fold", fold)
+        tune_frames.append(per_family_tune)
+
+        present = set(per_family_tune["strategy"].astype(str))
+        all_fusion = canonical_strategy_order(tools, fusion_strategies(present))
+        fold_selected = best_tau_per_strategy(per_family_tune, all_fusion, metric)
+        for strategy in fold_selected:
+            base, tau = split_tau_strategy(strategy)
+            fold_choice_rows.append({"fold": fold, "base_strategy": base, "tau": tau, "strategy": strategy})
+
+    per_family_tune_all = pd.concat(tune_frames, ignore_index=True)
+    per_family_tune_mean = mean_over_folds(per_family_tune_all)
+    present = set(per_family_tune_mean["strategy"].astype(str))
+    all_fusion = canonical_strategy_order(tools, fusion_strategies(present))
+    selected_strategies = best_tau_per_strategy(per_family_tune_mean, all_fusion, metric)
+
+    fold_tau_choices = pd.DataFrame(fold_choice_rows)
+    return selected_strategies, fold_tau_choices
+
+
 def run_language_level(
     language: str,
     level: str,
@@ -278,9 +352,20 @@ def run_language_level(
         save_strategy_plots(overall, results_dir / "plots")
         save_best_variant_plots(overall, results_dir / "plots" / "best_variants")
         save_family_performance_plots(per_family_mean, overall, results_dir / "plots" / "top_cwe_families", tools=tools)
+
+        # Tau for the headline (strategy, family) comparison is picked from
+        # calibration-internal data only (nested per outer fold), never from the
+        # val_df values being reported here -- see _select_tau_nested's docstring.
+        console.print("  selecting tau via nested calibration-internal split …")
+        selected_strategies, fold_tau_choices = _select_tau_nested(
+            cdf, folds, tools, families, threshold=threshold, seed=seed,
+            calibration_metrics=calibration_metrics, taus=taus, tier=tier, metric="f1",
+        )
+        save_csv(fold_tau_choices, results_dir / "fusion_tau_selection_by_fold.csv")
         save_mean_difference_ci_report(
             per_family_mean, results_dir / "plots", metric="f1", tools=tools,
             per_family_per_fold=None, show_pvalues=show_pvalues,
+            preselected_strategies=selected_strategies,
         )
 
     _print_overall(language, level, overall, detection_overall)
