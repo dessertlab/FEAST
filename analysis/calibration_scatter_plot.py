@@ -19,7 +19,6 @@ To ensure every point is clearly associated with its CWE:
 
 from __future__ import annotations
 
-import argparse
 import math
 from pathlib import Path
 from typing import Sequence
@@ -33,33 +32,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
 
-# ── Colorblind-friendly palette & markers ─────────────────────────────────────
-_TOOL_COLORS = {
-    "bandit": "#E69F00",      # orange
-    "codeql": "#56B4E9",      # sky blue
-    "cppcheck": "#009E73",    # bluish green
-    "flawfinder": "#F0E442",  # yellow
-    "ikos": "#0072B2",        # blue
-    "joern": "#D55E00",       # vermillion
-    "pylint": "#CC79A7",      # reddish purple
-    "semgrep": "#000000",     # black
-}
-
-_TOOL_MARKERS = {
-    "bandit": "o",       # Circle
-    "codeql": "s",       # Square
-    "cppcheck": "^",     # Triangle Up
-    "flawfinder": "D",   # Diamond
-    "ikos": "v",         # Triangle Down
-    "joern": "<",        # Triangle Left
-    "pylint": ">",       # Triangle Right
-    "semgrep": "X",      # X
-}
-
-_FALLBACK_COLORS = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#000000"]
-_FALLBACK_MARKERS = ["o", "s", "^", "D", "v", "<", ">", "X"]
-
-LANG_TITLES = {"python": "Python", "java": "Java", "c_cpp": "C/C++"}
+from analysis.plot_style import LANG_TITLES, load_calibration, plot_cli_args, rc_style, tool_palette
 
 # Language-specific zoom windows for the high-density regions
 ZOOM_LIMITS = {
@@ -76,39 +49,6 @@ ZOOM_LIMITS = {
         "y": (0.98, 1.001)
     }
 }
-
-
-# ── data loading ──────────────────────────────────────────────────────────────
-
-def load_calibration(lang: str, results_root: Path, min_tools: int = 2) -> pd.DataFrame:
-    """Load calibration CSV, average over folds, filter to top 6 CWEs by support."""
-    path = results_root / lang / "pillar_child" / "full" / "calibration_reliability.csv"
-    if not path.exists():
-        return pd.DataFrame()
-    raw = pd.read_csv(path)
-    grp = (
-        raw.groupby(["tool", "family"], as_index=False)
-        .agg(
-            sensitivity=("sensitivity", "mean"),
-            specificity=("specificity", "mean"),
-            positive_support=("positive_support", "mean"),
-            supported=("supported", "max"),
-        )
-    )
-    grp = grp[grp["supported"].astype(bool)].copy()
-    
-    # Keep only CWEs supported by >= min_tools
-    cwe_n = grp.groupby("family")["tool"].nunique()
-    valid_cwes = cwe_n[cwe_n >= min_tools].index
-    grp = grp[grp["family"].isin(valid_cwes)].copy()
-    
-    # Filter to top 6 CWEs by support
-    if not grp.empty:
-        family_support = grp.groupby("family")["positive_support"].max()
-        top_6_families = family_support.sort_values(ascending=False).head(6).index
-        grp = grp[grp["family"].isin(top_6_families)].copy()
-        
-    return grp.reset_index(drop=True)
 
 
 # ── jitter helpers ────────────────────────────────────────────────────────────
@@ -452,27 +392,8 @@ def make_calibration_scatter(
             if t not in all_tools:
                 all_tools.append(t)
 
-    tool_colors = {}
-    tool_markers = {}
-    for i, t in enumerate(sorted(all_tools)):
-        tool_colors[t] = _TOOL_COLORS.get(t, _FALLBACK_COLORS[i % len(_FALLBACK_COLORS)])
-        tool_markers[t] = _TOOL_MARKERS.get(t, _FALLBACK_MARKERS[i % len(_FALLBACK_MARKERS)])
-
-    rc = {
-        "font.family": "sans-serif" if use_sans else "serif",
-        "axes.edgecolor": "#333333",
-        "axes.linewidth": 0.8,
-        "xtick.color": "#333333",
-        "ytick.color": "#333333",
-        "text.color": "#222222",
-        "savefig.facecolor": "white",
-        "figure.facecolor": "white",
-        "font.size": 10,
-    }
-    if use_sans:
-        rc["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans", "Liberation Sans"]
-    else:
-        rc["font.serif"] = ["Times New Roman", "Times", "DejaVu Serif"]
+    tool_colors, tool_markers = tool_palette(all_tools)
+    rc = rc_style(use_sans, {"font.size": 10})
 
     n_langs = len(langs)
     with plt.rc_context(rc):
@@ -539,14 +460,10 @@ def make_calibration_scatter(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Calibration scatter plot (sens vs spec per tool x CWE).")
-    parser.add_argument("--results-dir", default="data/results")
-    parser.add_argument("--out-stem", default=None)
-    parser.add_argument("--min-tools", type=int, default=2)
-    parser.add_argument("--langs", nargs="+", default=["python", "java", "c_cpp"])
-    args = parser.parse_args()
-
+    args = plot_cli_args(
+        "Calibration scatter plot (sens vs spec per tool x CWE).",
+        default_langs=["python", "java", "c_cpp"],
+    )
     make_calibration_scatter(
         langs=args.langs, results_root=args.results_dir,
         out_stem=args.out_stem, min_tools=args.min_tools, use_sans=True,

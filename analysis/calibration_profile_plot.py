@@ -7,7 +7,6 @@ A 2x3 grid: rows = metrics (sensitivity, specificity), cols = languages.
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from typing import Sequence
 
@@ -17,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
-from analysis.calibration_scatter_plot import load_calibration, _TOOL_COLORS, _TOOL_MARKERS, _FALLBACK_COLORS, _FALLBACK_MARKERS, LANG_TITLES
+from analysis.plot_style import LANG_TITLES, load_calibration, plot_cli_args, rc_style, tool_palette
 
 def make_calibration_profile(
     langs: Sequence[str] = ("python", "java", "c_cpp"),
@@ -41,27 +40,8 @@ def make_calibration_profile(
             if t not in all_tools:
                 all_tools.append(t)
 
-    tool_colors = {}
-    tool_markers = {}
-    for i, t in enumerate(sorted(all_tools)):
-        tool_colors[t] = _TOOL_COLORS.get(t, _FALLBACK_COLORS[i % len(_FALLBACK_COLORS)])
-        tool_markers[t] = _TOOL_MARKERS.get(t, _FALLBACK_MARKERS[i % len(_FALLBACK_MARKERS)])
-
-    rc = {
-        "font.family": "sans-serif" if use_sans else "serif",
-        "axes.edgecolor": "#333333",
-        "axes.linewidth": 0.8,
-        "xtick.color": "#333333",
-        "ytick.color": "#333333",
-        "text.color": "#222222",
-        "savefig.facecolor": "white",
-        "figure.facecolor": "white",
-        "font.size": 10,
-    }
-    if use_sans:
-        rc["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans", "Liberation Sans"]
-    else:
-        rc["font.serif"] = ["Times New Roman", "Times", "DejaVu Serif"]
+    tool_colors, tool_markers = tool_palette(all_tools)
+    rc = rc_style(use_sans, {"font.size": 10})
 
     n_langs = len(langs)
     metrics = ["sensitivity", "specificity"]
@@ -167,12 +147,7 @@ def make_calibration_profile(
         return [png_path, svg_path]
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Calibration profile plot.")
-    parser.add_argument("--results-dir", default="data/results")
-    parser.add_argument("--out-stem", default=None)
-    parser.add_argument("--min-tools", type=int, default=2)
-    parser.add_argument("--langs", nargs="+", default=["python", "java", "c_cpp"])
-    args = parser.parse_args()
+    args = plot_cli_args("Calibration profile plot.", default_langs=["python", "java", "c_cpp"])
 
     make_calibration_profile(
         langs=args.langs,

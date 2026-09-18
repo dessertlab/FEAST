@@ -383,7 +383,7 @@ def mean_difference_ci(
     return pd.DataFrame(rows)
 
 
-def _strategy_label(strategy: str) -> str:
+def strategy_label(strategy: str) -> str:
     base, tau = split_tau_strategy(strategy)
     if base.startswith("weighted_fire_") and "_silence_" in base:
         label = "Weighted Voting"
@@ -427,7 +427,7 @@ def _format_p_value(p_val: float) -> str:
     return f"p={s}"
 
 
-def _annotate_pvalue(
+def annotate_pvalue(
     ax: "matplotlib.axes.Axes",
     hl: float,
     y: float,
@@ -498,7 +498,7 @@ def save_mean_difference_ci_plot(
             return []
 
         strategies = frame["strategy"].astype(str).tolist()
-        labels = [_strategy_label(strategy) for strategy in strategies]
+        labels = [strategy_label(strategy) for strategy in strategies]
         metric = str(frame["metric"].iloc[0])
 
 
@@ -551,7 +551,7 @@ def save_mean_difference_ci_plot(
                     zorder=3,
                 )
                 if show_pvalues:
-                    _annotate_pvalue(ax, hl, y, row)
+                    annotate_pvalue(ax, hl, y, row)
 
             ax.set_yticks(y_positions, labels)
             ax.invert_yaxis()
@@ -598,7 +598,7 @@ def save_mean_difference_ci_plot(
             return []
 
         strategies = frame_1["strategy"].astype(str).tolist()
-        labels = [_strategy_label(strategy) for strategy in strategies]
+        labels = [strategy_label(strategy) for strategy in strategies]
         metric = str(frame_1["metric"].iloc[0])
 
 
@@ -656,7 +656,7 @@ def save_mean_difference_ci_plot(
                     zorder=3,
                 )
                 if show_pvalues:
-                    _annotate_pvalue(ax1, hl, y, row)
+                    annotate_pvalue(ax1, hl, y, row)
 
             ax1.set_yticks(y_positions, labels)
             ax1.invert_yaxis()
@@ -696,7 +696,7 @@ def save_mean_difference_ci_plot(
                     zorder=3,
                 )
                 if show_pvalues:
-                    _annotate_pvalue(ax2, hl, y, row)
+                    annotate_pvalue(ax2, hl, y, row)
 
             ax2.set_xlabel("")
             ax2.set_title("")

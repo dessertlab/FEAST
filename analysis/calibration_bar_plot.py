@@ -9,7 +9,6 @@ Grid layout:
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from typing import Sequence
 
@@ -18,7 +17,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from analysis.calibration_scatter_plot import load_calibration, LANG_TITLES
+from analysis.plot_style import LANG_TITLES, load_calibration, plot_cli_args, rc_style
 
 # Colorblind-friendly pairing for the two metrics
 _METRIC_COLORS = {
@@ -71,25 +70,9 @@ def make_calibration_bars(
             lang_cwes[lang] = []
             lang_cwe_support[lang] = {}
 
-    # Increase font sizes and configure styles
-    rc = {
-        "font.family": "sans-serif" if use_sans else "serif",
-        "axes.edgecolor": "#333333",
-        "axes.linewidth": 0.8,
-        "xtick.color": "#333333",
-        "ytick.color": "#333333",
-        "text.color": "#222222",
-        "savefig.facecolor": "white",
-        "figure.facecolor": "white",
-        "font.size": 16,                # Increased global font size
-        "axes.labelsize": 14,           # Increased axis label size
-        "xtick.labelsize": 16,          # Increased tick label size
-        "ytick.labelsize": 16,
-    }
-    if use_sans:
-        rc["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans", "Liberation Sans"]
-    else:
-        rc["font.serif"] = ["Times New Roman", "Times", "DejaVu Serif"]
+    rc = rc_style(use_sans, {
+        "font.size": 16, "axes.labelsize": 14, "xtick.labelsize": 16, "ytick.labelsize": 16,
+    })
 
     n_langs = len(langs)
     n_cwes = 6  # Show top 6 CWEs
@@ -218,12 +201,7 @@ def make_calibration_bars(
         return [png_path, svg_path]
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Calibration bar plot.")
-    parser.add_argument("--results-dir", default="data/results")
-    parser.add_argument("--out-stem", default=None)
-    parser.add_argument("--min-tools", type=int, default=2)
-    parser.add_argument("--langs", nargs="+", default=["c_cpp", "java", "python"])
-    args = parser.parse_args()
+    args = plot_cli_args("Calibration bar plot.", default_langs=["c_cpp", "java", "python"])
 
     make_calibration_bars(
         langs=args.langs,

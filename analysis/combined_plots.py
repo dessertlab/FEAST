@@ -7,9 +7,10 @@ from analysis.mean_difference_ci import (
     STATUS_INCONCLUSIVE,
     STATUS_LABELS,
     STATUS_STYLES,
-    _annotate_pvalue,
-    _strategy_label,
+    annotate_pvalue,
+    strategy_label,
 )
+from analysis.plot_style import rc_style
 
 
 def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/results"):
@@ -18,25 +19,11 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
     import matplotlib.lines as mlines
     import matplotlib.pyplot as plt
 
-    rc = {
-        "font.family": "sans-serif" if use_sans else "serif",
-        "axes.edgecolor": "#000000",
-        "axes.linewidth": 0.8,
-        "xtick.color": "#000000",
-        "ytick.color": "#000000",
-        "text.color": "#000000",
-        "savefig.facecolor": "white",
-        "figure.facecolor": "white",
-        "font.size": 18,
-        "axes.labelsize": 18,
-        "xtick.labelsize": 18,
-        "ytick.labelsize": 18,
-        "legend.fontsize": 22,
-    }
-    if use_sans:
-        rc["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans", "Liberation Sans"]
-    else:
-        rc["font.serif"] = ["Times New Roman", "Times", "DejaVu Serif"]
+    rc = rc_style(use_sans, {
+        "axes.edgecolor": "#000000", "xtick.color": "#000000", "ytick.color": "#000000",
+        "text.color": "#000000", "font.size": 18, "axes.labelsize": 18,
+        "xtick.labelsize": 18, "ytick.labelsize": 18, "legend.fontsize": 22,
+    })
 
     with plt.rc_context(rc):
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(24, 11))
@@ -68,7 +55,7 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
                     df = df[df["baseline"] == "traditional"].copy()
 
             strategies = df["strategy"].astype(str).tolist()
-            labels = [_strategy_label(s) for s in strategies]
+            labels = [strategy_label(s) for s in strategies]
             y_positions = list(range(len(strategies)))
 
             for y in y_positions:
@@ -102,7 +89,7 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
                 )
 
                 if show_pvalues:
-                    _annotate_pvalue(ax, hl, y, row)
+                    annotate_pvalue(ax, hl, y, row)
 
             ax.set_yticks(y_positions, labels)
             ax.invert_yaxis()
