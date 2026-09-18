@@ -157,7 +157,7 @@ def test_cwe_normalisation_handles_full_label_in_csv(tmp_path):
 
 
 def test_cwe_normalisation_returns_empty_for_unparseable(tmp_path):
-    # cwe column has gibberish -> _normalise_cwe returns "";
+    # cwe column has gibberish -> normalise_cwe returns "";
     # category fallback ("xss" partial match) recovers CWE-79.
     (tmp_path / "expectedresults-1.2.csv").write_text(
         "# test name,category,real vulnerability,cwe\n"
@@ -167,7 +167,7 @@ def test_cwe_normalisation_returns_empty_for_unparseable(tmp_path):
     src.mkdir()
     (src / "BenchmarkTest00001.java").write_text("class A {}")
     samples = extract_owasp_benchmark(tmp_path, language="Java")
-    # _normalise_cwe returns "" -> falsy -> falls through to category fallback at runtime
+    # normalise_cwe returns "" -> falsy -> falls through to category fallback at runtime
     # (note: extractor only calls _cwe_from_category when cwe column is blank,
     # so a gibberish value here will result in cwe=""; vulnerable=1 with empty
     # cwe is filtered out).

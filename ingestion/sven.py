@@ -1,21 +1,7 @@
 from pathlib import Path
 
-import pandas as pd
-
 from ingestion.schema import FunctionSample
-from ingestion.utils import _NVD_PLACEHOLDERS
-
-
-def _normalize_cwe(raw: str) -> str:
-    """'cwe-022' -> 'CWE-22', strips leading zeros and normalises case."""
-    raw = raw.strip()
-    if raw.lower().startswith("cwe-"):
-        num_str = raw[4:]
-        try:
-            return f"CWE-{int(num_str)}"
-        except ValueError:
-            return ""
-    return ""
+from ingestion.utils import _NVD_PLACEHOLDERS, load_parquet_dir_or_file, normalise_cwe
 
 
 def _lang_from_filename(filename: str) -> str | None:
@@ -42,13 +28,7 @@ def extract_sven(
 
     language parameter accepts: "C/C++", "Python".
     """
-    if data_path.is_dir():
-        parts = sorted(data_path.rglob("*.parquet"))
-        if not parts:
-            raise FileNotFoundError(f"No .parquet files found in {data_path}")
-        df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
-    else:
-        df = pd.read_parquet(data_path)
+    df = load_parquet_dir_or_file(data_path)
 
     # Language filter from file_name extension
     df["_lang"] = df["file_name"].apply(_lang_from_filename)
@@ -58,7 +38,7 @@ def extract_sven(
 
     for _, row in df.iterrows():
         cwe_raw = str(row.get("vul_type", "") or "")
-        cwe = _normalize_cwe(cwe_raw)
+        cwe = normalise_cwe(cwe_raw)
         if not cwe or cwe in _NVD_PLACEHOLDERS:
             continue
 

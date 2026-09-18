@@ -1,9 +1,8 @@
-import json
 import re
 from pathlib import Path
 
 from ingestion.schema import FunctionSample
-from ingestion.utils import _CWE_RE
+from ingestion.utils import _CWE_RE, load_json_records
 
 # Language detection heuristics from code content / file metadata
 _JAVA_KEYWORDS   = re.compile(r"\b(public\s+class|import\s+java\.|@Override|System\.out)\b")
@@ -46,20 +45,7 @@ def extract_capec_llm(
     if not data_path.exists():
         raise FileNotFoundError(f"CAPEC_LLM path not found: {data_path}")
 
-    records: list[dict] = []
-
-    if data_path.is_file():
-        with open(data_path, encoding="utf-8") as fh:
-            raw = json.load(fh)
-        records = raw if isinstance(raw, list) else [raw]
-    else:
-        for json_file in sorted(data_path.rglob("*.json")):
-            with open(json_file, encoding="utf-8") as fh:
-                raw = json.load(fh)
-            if isinstance(raw, list):
-                records.extend(raw)
-            elif isinstance(raw, dict):
-                records.append(raw)
+    records = load_json_records(data_path)
 
     samples: list[FunctionSample] = []
 

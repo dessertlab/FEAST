@@ -1,10 +1,8 @@
 from collections import Counter
 from pathlib import Path
 
-import pandas as pd
-
 from ingestion.schema import FunctionSample
-from ingestion.utils import _NVD_PLACEHOLDERS, _CWE_RE
+from ingestion.utils import _NVD_PLACEHOLDERS, _CWE_RE, load_parquet_dir_or_file
 
 
 def extract_megavul(
@@ -26,13 +24,7 @@ def extract_megavul(
 
     Negatives: none.
     """
-    if data_path.is_dir():
-        parts = sorted(data_path.rglob("*.parquet"))
-        if not parts:
-            raise FileNotFoundError(f"No .parquet files found in {data_path}")
-        df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
-    else:
-        df = pd.read_parquet(data_path)
+    df = load_parquet_dir_or_file(data_path)
 
     df = df[df["vulnerable_code"].notna() & (df["vulnerable_code"].str.strip() != "")].copy()
 

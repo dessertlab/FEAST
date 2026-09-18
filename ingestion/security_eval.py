@@ -3,27 +3,9 @@ import re
 from pathlib import Path
 
 from ingestion.schema import FunctionSample
-from ingestion.utils import _CWE_RE
+from ingestion.utils import normalise_cwe
 
 _CWE_DIR_RE = re.compile(r"CWE[-_]?(\d+)", re.IGNORECASE)
-
-
-def _cwe_from_id_field(raw) -> str:
-    """Parse CWE from an ID field like 'CWE-79-1' or 'CWE79'."""
-    if not raw:
-        return ""
-    m = _CWE_RE.search(str(raw))
-    if m:
-        digits = m.group(0).replace("CWE-", "")
-        try:
-            return f"CWE-{int(digits)}"
-        except ValueError:
-            return ""
-    # Try without dash: 'CWE79'
-    m2 = re.search(r"CWE(\d+)", str(raw), re.IGNORECASE)
-    if m2:
-        return f"CWE-{int(m2.group(1))}"
-    return ""
 
 
 def extract_security_eval(data_path: Path) -> list[FunctionSample]:
@@ -63,7 +45,7 @@ def extract_security_eval(data_path: Path) -> list[FunctionSample]:
                 cwe_raw = str(
                     rec.get("CWE") or rec.get("cwe") or rec.get("ID") or ""
                 )
-                cwe = _cwe_from_id_field(cwe_raw)
+                cwe = normalise_cwe(cwe_raw)
                 if not cwe:
                     continue
                 samples.append(FunctionSample(

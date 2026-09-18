@@ -2,7 +2,7 @@ import csv
 from pathlib import Path
 
 from ingestion.schema import FunctionSample
-from ingestion.utils import _CWE_RE
+from ingestion.utils import normalise_cwe
 
 # OWASP Benchmark category -> CWE mapping
 _CATEGORY_TO_CWE: dict[str, str] = {
@@ -31,21 +31,6 @@ def _cwe_from_category(category: str) -> str | None:
         if k in key:
             return v
     return None
-
-
-def _normalise_cwe(raw: str) -> str:
-    raw = raw.strip()
-    # CSV stores bare digits (e.g. "22") rather than "CWE-22"
-    if raw.isdigit():
-        return f"CWE-{int(raw)}"
-    m = _CWE_RE.search(raw)
-    if not m:
-        return ""
-    digits = m.group(0).replace("CWE-", "")
-    try:
-        return f"CWE-{int(digits)}"
-    except ValueError:
-        return ""
 
 
 def extract_owasp_benchmark(
@@ -111,7 +96,7 @@ def extract_owasp_benchmark(
             continue
 
         is_vuln = real_vuln in ("1", "true", "True", "TRUE", "yes")
-        cwe = _normalise_cwe(cwe_raw) if cwe_raw else _cwe_from_category(category) or ""
+        cwe = normalise_cwe(cwe_raw) if cwe_raw else _cwe_from_category(category) or ""
         expected[test_name.lower()] = (is_vuln, cwe)
 
     ext = ".java" if language == "Java" else ".py"

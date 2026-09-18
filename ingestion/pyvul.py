@@ -2,18 +2,7 @@ import json
 from pathlib import Path
 
 from ingestion.schema import FunctionSample
-from ingestion.utils import _CWE_RE
-
-
-def _normalise_cwe(raw: str) -> str:
-    m = _CWE_RE.search(str(raw))
-    if not m:
-        return ""
-    digits = m.group(0).replace("CWE-", "")
-    try:
-        return f"CWE-{int(digits)}"
-    except ValueError:
-        return ""
+from ingestion.utils import normalise_cwe
 
 
 def extract_pyvul(data_path: Path) -> list[FunctionSample]:
@@ -46,7 +35,7 @@ def extract_pyvul(data_path: Path) -> list[FunctionSample]:
             rec = json.loads(line)
             if rec.get("programming_language", "").lower() != "python":
                 continue
-            cwe = _normalise_cwe(cwe_map.get(rec.get("commit", ""), ""))
+            cwe = normalise_cwe(cwe_map.get(rec.get("commit", ""), ""))
             if not cwe:
                 continue
             vuln = str(rec.get("code_before", "") or "").strip()

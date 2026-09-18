@@ -1,19 +1,7 @@
-import json
 from pathlib import Path
 
 from ingestion.schema import FunctionSample
-from ingestion.utils import _CWE_RE
-
-
-def _normalise_cwe(raw: str) -> str:
-    m = _CWE_RE.search(str(raw))
-    if not m:
-        return ""
-    digits = m.group(0).replace("CWE-", "")
-    try:
-        return f"CWE-{int(digits)}"
-    except ValueError:
-        return ""
+from ingestion.utils import _CWE_RE, load_json_records, normalise_cwe
 
 
 def _extract_cwes_from_cwe_info(cwe_info) -> list[str]:
@@ -23,7 +11,7 @@ def _extract_cwes_from_cwe_info(cwe_info) -> list[str]:
     if isinstance(cwe_info, dict):
         cwes = []
         for key in cwe_info:
-            cwe = _normalise_cwe(str(key))
+            cwe = normalise_cwe(key)
             if cwe:
                 cwes.append(cwe)
         return list(dict.fromkeys(cwes))
@@ -50,20 +38,7 @@ def extract_patcheval(
 
     docker_verified_only: if True, keep only entries where docker_verified=True.
     """
-    records: list[dict] = []
-
-    if data_path.is_file():
-        with open(data_path, encoding="utf-8") as fh:
-            raw = json.load(fh)
-        records = raw if isinstance(raw, list) else [raw]
-    else:
-        for jf in sorted(data_path.rglob("*.json")):
-            with open(jf, encoding="utf-8") as fh:
-                raw = json.load(fh)
-            if isinstance(raw, list):
-                records.extend(raw)
-            elif isinstance(raw, dict):
-                records.append(raw)
+    records = load_json_records(data_path)
 
     samples: list[FunctionSample] = []
 

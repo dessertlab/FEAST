@@ -1,10 +1,14 @@
 from collections import Counter
 from pathlib import Path
 
-import pandas as pd
-
 from ingestion.schema import FunctionSample
-from ingestion.utils import _NVD_PLACEHOLDERS, _CWE_RE, EXCLUDED_SAMPLE_IDS, code_sample_id
+from ingestion.utils import (
+    _NVD_PLACEHOLDERS,
+    _CWE_RE,
+    EXCLUDED_SAMPLE_IDS,
+    code_sample_id,
+    load_parquet_dir_or_file,
+)
 
 _SUPPORTED_LANGUAGES = {"C", "C++", "Java", "Python"}
 
@@ -25,13 +29,7 @@ def extract_cvefixes(data_path: Path, language: str = "C") -> list[FunctionSampl
 
     Negatives: none.
     """
-    if data_path.is_dir():
-        parts = sorted(data_path.rglob("*.parquet"))
-        if not parts:
-            raise FileNotFoundError(f"No .parquet files found in {data_path}")
-        df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
-    else:
-        df = pd.read_parquet(data_path)
+    df = load_parquet_dir_or_file(data_path)
 
     # Map language param to dataset language values
     if language in ("C", "C++"):

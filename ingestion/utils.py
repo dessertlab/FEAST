@@ -1,5 +1,9 @@
 import hashlib
+import json
 import re
+from pathlib import Path
+
+import pandas as pd
 
 _NVD_PLACEHOLDERS: frozenset[str] = frozenset({
     "NVD-CWE-Other",
@@ -8,6 +12,7 @@ _NVD_PLACEHOLDERS: frozenset[str] = frozenset({
 })
 
 _CWE_RE: re.Pattern = re.compile(r"CWE-\d+")
+_CWE_RE_LOOSE: re.Pattern = re.compile(r"CWE[-_]?(\d+)", re.IGNORECASE)
 
 
 def _norm_code(code: str) -> str:
@@ -48,3 +53,54 @@ def split_cwe(raw: str) -> list[str]:
     if raw in _NVD_PLACEHOLDERS:
         return []
     return _CWE_RE.findall(raw)
+
+
+def normalise_cwe(raw) -> str:
+    """Normalise a single CWE reference to canonical 'CWE-N' form.
+
+    Accepts 'CWE-089', 'cwe-79', 'CWE79' (no dash), 'CWE-79-1' (extra suffix,
+    first number wins), and bare digits ('79'). Returns '' if no CWE number
+    can be extracted.
+    """
+    if raw is None:
+        return ""
+    raw = str(raw).strip()
+    if not raw:
+        return ""
+    if raw.isdigit():
+        return f"CWE-{int(raw)}"
+    m = _CWE_RE_LOOSE.search(raw)
+    if not m:
+        return ""
+    return f"CWE-{int(m.group(1))}"
+
+
+def load_parquet_dir_or_file(path: Path) -> pd.DataFrame:
+    """Load a single .parquet file, or concatenate every .parquet file under a directory."""
+    if path.is_dir():
+        parts = sorted(path.rglob("*.parquet"))
+        if not parts:
+            raise FileNotFoundError(f"No .parquet files found in {path}")
+        return pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
+    return pd.read_parquet(path)
+
+
+def load_json_records(path: Path) -> list[dict]:
+    """Load JSON records from a single file, or every .json file under a directory.
+
+    Each file may hold a list of records or a single record dict.
+    """
+    if path.is_file():
+        with open(path, encoding="utf-8") as fh:
+            raw = json.load(fh)
+        return raw if isinstance(raw, list) else [raw]
+
+    records: list[dict] = []
+    for jf in sorted(path.rglob("*.json")):
+        with open(jf, encoding="utf-8") as fh:
+            raw = json.load(fh)
+        if isinstance(raw, list):
+            records.extend(raw)
+        elif isinstance(raw, dict):
+            records.append(raw)
+    return records

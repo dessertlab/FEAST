@@ -27,10 +27,6 @@ def _parse_cwe_list(raw) -> list[str]:
         parts = _CWE_RE.findall(item)
         if parts:
             result.extend(parts)
-        elif not item.startswith("CWE-"):
-            pass
-        else:
-            result.append(item)
     return list(dict.fromkeys(result))
 
 
