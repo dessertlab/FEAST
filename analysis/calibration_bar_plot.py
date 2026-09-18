@@ -208,9 +208,6 @@ def make_calibration_bars(
             fontsize=24
         )
 
-        # No super-title (fig.suptitle) as requested: "Togli anche il titolo"
-
-        # tight_layout with padding parameters
         fig.tight_layout()
 
         png_path = out_stem.with_suffix(".png")

@@ -54,7 +54,7 @@ the 4-binary-feature, 30–900 samples/family regime of FEAST):
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Callable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -93,20 +93,23 @@ def _fallback_score(y_cal: np.ndarray, n_val: int) -> np.ndarray:
     return np.full(n_val, float(y_cal.mean()) if len(y_cal) else 0.0)
 
 
-# ── Decision Tree ─────────────────────────────────────────────────────────────
-
-def decision_tree_predictions(
+def _classifier_predictions(
     calibration_df: pd.DataFrame,
     validation_df: pd.DataFrame,
     tools: Sequence[str],
     families: Sequence[str],
     labels: dict[tuple[int, str], bool],
     fire_index: tuple[dict[tuple[int, str], set[str]], list[set[str]]],
+    strategy: str,
+    fit_predict: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray],
     tau: float = 0.5,
-    seed: int = 0,
 ) -> pd.DataFrame:
-    from sklearn.tree import DecisionTreeClassifier
+    """Shared per-family fit/predict/evidence-row loop for every ML fuser below.
 
+    ``fit_predict(x_cal, y_cal, x_val) -> score`` does the classifier-specific work
+    (construction, fit, predict_proba); this handles feature-matrix construction, the
+    single-class fallback, and prediction-frame assembly identically for all of them.
+    """
     cal_fire, _ = build_fire_index(calibration_df, tools)
     val_fire, _ = fire_index
     cal_labels = precompute_labels(calibration_df, families)
@@ -123,26 +126,49 @@ def decision_tree_predictions(
         if len(np.unique(y_cal)) < 2:
             score = _fallback_score(y_cal, n_val)
         else:
-            clf = DecisionTreeClassifier(
-                criterion="gini",
-                max_depth=2,
-                min_samples_leaf=3,
-                min_samples_split=5,
-                class_weight="balanced",
-                random_state=seed,
-            )
-            clf.fit(x_cal, y_cal)
-            score = clf.predict_proba(x_val)[:, 1]
+            score = fit_predict(x_cal, y_cal, x_val)
 
         for ri in range(n_val):
             rows.append(evidence_row(
-                sample_ids[ri], ri, family, "decision_tree",
+                sample_ids[ri], ri, family, strategy,
                 prediction=bool(score[ri] >= tau), score=float(score[ri]),
                 vuln=float(score[ri]), safe=float(1.0 - score[ri]),
                 k_supported=len(tools), k_fired=int(fired_counts[ri]), k_abstained=0,
                 label=labels[(ri, family)],
             ))
     return pd.DataFrame(rows)
+
+
+# ── Decision Tree ─────────────────────────────────────────────────────────────
+
+def decision_tree_predictions(
+    calibration_df: pd.DataFrame,
+    validation_df: pd.DataFrame,
+    tools: Sequence[str],
+    families: Sequence[str],
+    labels: dict[tuple[int, str], bool],
+    fire_index: tuple[dict[tuple[int, str], set[str]], list[set[str]]],
+    tau: float = 0.5,
+    seed: int = 0,
+) -> pd.DataFrame:
+    from sklearn.tree import DecisionTreeClassifier
+
+    def fit_predict(x_cal: np.ndarray, y_cal: np.ndarray, x_val: np.ndarray) -> np.ndarray:
+        clf = DecisionTreeClassifier(
+            criterion="gini",
+            max_depth=2,
+            min_samples_leaf=3,
+            min_samples_split=5,
+            class_weight="balanced",
+            random_state=seed,
+        )
+        clf.fit(x_cal, y_cal)
+        return clf.predict_proba(x_val)[:, 1]
+
+    return _classifier_predictions(
+        calibration_df, validation_df, tools, families, labels, fire_index,
+        "decision_tree", fit_predict, tau=tau,
+    )
 
 
 # ── Random Forest ─────────────────────────────────────────────────────────────
@@ -159,45 +185,26 @@ def random_forest_predictions(
 ) -> pd.DataFrame:
     from sklearn.ensemble import RandomForestClassifier
 
-    cal_fire, _ = build_fire_index(calibration_df, tools)
-    val_fire, _ = fire_index
-    cal_labels = precompute_labels(calibration_df, families)
-    sample_ids = sample_ids_of(validation_df)
-    n_cal, n_val = len(calibration_df), len(validation_df)
     max_features = min(2, len(tools))
 
-    rows: list[dict] = []
-    for family in families:
-        x_cal = _build_feature_matrix(cal_fire, n_cal, tools, family)
-        y_cal = np.array([int(cal_labels[(i, family)]) for i in range(n_cal)])
-        x_val = _build_feature_matrix(val_fire, n_val, tools, family)
-        fired_counts = x_val.sum(axis=1).astype(int)
+    def fit_predict(x_cal: np.ndarray, y_cal: np.ndarray, x_val: np.ndarray) -> np.ndarray:
+        clf = RandomForestClassifier(
+            n_estimators=100,
+            max_features=max_features,
+            max_depth=3,
+            min_samples_leaf=3,
+            min_samples_split=5,
+            bootstrap=True,
+            class_weight="balanced",
+            random_state=seed,
+        )
+        clf.fit(x_cal, y_cal)
+        return clf.predict_proba(x_val)[:, 1]
 
-        if len(np.unique(y_cal)) < 2:
-            score = _fallback_score(y_cal, n_val)
-        else:
-            clf = RandomForestClassifier(
-                n_estimators=100,
-                max_features=max_features,
-                max_depth=3,
-                min_samples_leaf=3,
-                min_samples_split=5,
-                bootstrap=True,
-                class_weight="balanced",
-                random_state=seed,
-            )
-            clf.fit(x_cal, y_cal)
-            score = clf.predict_proba(x_val)[:, 1]
-
-        for ri in range(n_val):
-            rows.append(evidence_row(
-                sample_ids[ri], ri, family, "random_forest",
-                prediction=bool(score[ri] >= tau), score=float(score[ri]),
-                vuln=float(score[ri]), safe=float(1.0 - score[ri]),
-                k_supported=len(tools), k_fired=int(fired_counts[ri]), k_abstained=0,
-                label=labels[(ri, family)],
-            ))
-    return pd.DataFrame(rows)
+    return _classifier_predictions(
+        calibration_df, validation_df, tools, families, labels, fire_index,
+        "random_forest", fit_predict, tau=tau,
+    )
 
 
 # ── Gradient Boosting ─────────────────────────────────────────────────────────
@@ -214,45 +221,26 @@ def gradient_boosting_predictions(
 ) -> pd.DataFrame:
     from sklearn.ensemble import GradientBoostingClassifier
 
-    cal_fire, _ = build_fire_index(calibration_df, tools)
-    val_fire, _ = fire_index
-    cal_labels = precompute_labels(calibration_df, families)
-    sample_ids = sample_ids_of(validation_df)
-    n_cal, n_val = len(calibration_df), len(validation_df)
     max_features = min(2, len(tools))
 
-    rows: list[dict] = []
-    for family in families:
-        x_cal = _build_feature_matrix(cal_fire, n_cal, tools, family)
-        y_cal = np.array([int(cal_labels[(i, family)]) for i in range(n_cal)])
-        x_val = _build_feature_matrix(val_fire, n_val, tools, family)
-        fired_counts = x_val.sum(axis=1).astype(int)
+    def fit_predict(x_cal: np.ndarray, y_cal: np.ndarray, x_val: np.ndarray) -> np.ndarray:
+        clf = GradientBoostingClassifier(
+            n_estimators=50,
+            learning_rate=0.1,
+            max_depth=2,
+            max_features=max_features,
+            min_samples_leaf=3,
+            min_samples_split=5,
+            subsample=0.8,
+            random_state=seed,
+        )
+        clf.fit(x_cal, y_cal, sample_weight=_balanced_sample_weight(y_cal))
+        return clf.predict_proba(x_val)[:, 1]
 
-        if len(np.unique(y_cal)) < 2:
-            score = _fallback_score(y_cal, n_val)
-        else:
-            clf = GradientBoostingClassifier(
-                n_estimators=50,
-                learning_rate=0.1,
-                max_depth=2,
-                max_features=max_features,
-                min_samples_leaf=3,
-                min_samples_split=5,
-                subsample=0.8,
-                random_state=seed,
-            )
-            clf.fit(x_cal, y_cal, sample_weight=_balanced_sample_weight(y_cal))
-            score = clf.predict_proba(x_val)[:, 1]
-
-        for ri in range(n_val):
-            rows.append(evidence_row(
-                sample_ids[ri], ri, family, "gradient_boosting",
-                prediction=bool(score[ri] >= tau), score=float(score[ri]),
-                vuln=float(score[ri]), safe=float(1.0 - score[ri]),
-                k_supported=len(tools), k_fired=int(fired_counts[ri]), k_abstained=0,
-                label=labels[(ri, family)],
-            ))
-    return pd.DataFrame(rows)
+    return _classifier_predictions(
+        calibration_df, validation_df, tools, families, labels, fire_index,
+        "gradient_boosting", fit_predict, tau=tau,
+    )
 
 
 # ── XGBoost ──────────────────────────────────────────────────────────────────
@@ -269,45 +257,26 @@ def xgboost_predictions(
 ) -> pd.DataFrame:
     from xgboost import XGBClassifier
 
-    cal_fire, _ = build_fire_index(calibration_df, tools)
-    val_fire, _ = fire_index
-    cal_labels = precompute_labels(calibration_df, families)
-    sample_ids = sample_ids_of(validation_df)
-    n_cal, n_val = len(calibration_df), len(validation_df)
     colsample_bytree = min(2, len(tools)) / len(tools)
 
-    rows: list[dict] = []
-    for family in families:
-        x_cal = _build_feature_matrix(cal_fire, n_cal, tools, family)
-        y_cal = np.array([int(cal_labels[(i, family)]) for i in range(n_cal)])
-        x_val = _build_feature_matrix(val_fire, n_val, tools, family)
-        fired_counts = x_val.sum(axis=1).astype(int)
+    def fit_predict(x_cal: np.ndarray, y_cal: np.ndarray, x_val: np.ndarray) -> np.ndarray:
+        clf = XGBClassifier(
+            n_estimators=50,
+            learning_rate=0.1,
+            max_depth=2,
+            subsample=0.8,
+            colsample_bytree=colsample_bytree,
+            reg_lambda=1.0,
+            min_child_weight=3,  # closest XGBoost analogue to min_samples_leaf=3
+            objective="binary:logistic",
+            eval_metric="logloss",
+            random_state=seed,
+            n_jobs=1,
+        )
+        clf.fit(x_cal, y_cal, sample_weight=_balanced_sample_weight(y_cal))
+        return clf.predict_proba(x_val)[:, 1]
 
-        if len(np.unique(y_cal)) < 2:
-            score = _fallback_score(y_cal, n_val)
-        else:
-            clf = XGBClassifier(
-                n_estimators=50,
-                learning_rate=0.1,
-                max_depth=2,
-                subsample=0.8,
-                colsample_bytree=colsample_bytree,
-                reg_lambda=1.0,
-                min_child_weight=3,  # closest XGBoost analogue to min_samples_leaf=3
-                objective="binary:logistic",
-                eval_metric="logloss",
-                random_state=seed,
-                n_jobs=1,
-            )
-            clf.fit(x_cal, y_cal, sample_weight=_balanced_sample_weight(y_cal))
-            score = clf.predict_proba(x_val)[:, 1]
-
-        for ri in range(n_val):
-            rows.append(evidence_row(
-                sample_ids[ri], ri, family, "xgboost",
-                prediction=bool(score[ri] >= tau), score=float(score[ri]),
-                vuln=float(score[ri]), safe=float(1.0 - score[ri]),
-                k_supported=len(tools), k_fired=int(fired_counts[ri]), k_abstained=0,
-                label=labels[(ri, family)],
-            ))
-    return pd.DataFrame(rows)
+    return _classifier_predictions(
+        calibration_df, validation_df, tools, families, labels, fire_index,
+        "xgboost", fit_predict, tau=tau,
+    )

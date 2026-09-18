@@ -108,6 +108,9 @@ def prepare_canonical(
     df = dataset.to_pandas().reset_index(drop=True)
     tools = _select_tools(list(dataset.tool_columns), exclude)
     if language == "python":
+        # DEVAIC labels its Python findings with its own "Top 25 CWE" list, which does
+        # not map onto CWE-1000 (Research Concepts) -- so it can't be canonicalised to a
+        # family and must always be dropped here, independent of the --exclude flag.
         tools = [t for t in tools if t.lower() != "devaic"]
     if not tools:
         raise ValueError(f"{language}/{level}: no tools left after exclusion")

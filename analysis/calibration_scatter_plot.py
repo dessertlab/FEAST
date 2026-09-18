@@ -547,7 +547,6 @@ if __name__ == "__main__":
     parser.add_argument("--langs", nargs="+", default=["python", "java", "c_cpp"])
     args = parser.parse_args()
 
-    # Generate only sans-serif plot as requested by the user
     make_calibration_scatter(
         langs=args.langs, results_root=args.results_dir,
         out_stem=args.out_stem, min_tools=args.min_tools, use_sans=True,
