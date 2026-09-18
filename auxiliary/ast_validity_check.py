@@ -61,13 +61,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
-def _check_python(code: str) -> tuple[bool, int | None, str | None]:
+def _check_python(code: str) -> tuple[bool, int | None, str | None, str]:
     try:
         tree = pyast.parse(code)
     except SyntaxError as exc:
-        return False, None, str(exc)
+        return False, None, str(exc), "invalid"
     n_funcs = sum(1 for node in tree.body if isinstance(node, (pyast.FunctionDef, pyast.AsyncFunctionDef)))
-    return True, n_funcs, None
+    return True, n_funcs, None, "module"
 
 
 _CPP_LANG = None
@@ -96,37 +96,87 @@ def _count_named(node, type_name: str) -> int:
     return sum(1 for child in node.children if child.type == type_name)
 
 
-def _check_cpp(code: str, parser) -> tuple[bool, int | None, str | None]:
+def _check_cpp(code: str, parser) -> tuple[bool, int | None, str | None, str]:
     tree = parser.parse(code.encode("utf-8", errors="replace"))
     root = tree.root_node
     valid = not root.has_error
     n_funcs = _count_named(root, "function_definition")
-    return valid, n_funcs, (None if valid else "tree-sitter ERROR node present")
+    return valid, n_funcs, (None if valid else "tree-sitter ERROR node present"), "compilation_unit"
 
 
-def _check_java(code: str, parser) -> tuple[bool, int | None, str | None]:
-    wrapped = f"class __Wrapper__ {{\n{code}\n}}"
-    tree = parser.parse(wrapped.encode("utf-8", errors="replace"))
+def _count_method_declarations(node) -> int:
+    """Recursive count of method_declaration nodes anywhere under node."""
+    total = 1 if node.type == "method_declaration" else 0
+    for child in node.children:
+        total += _count_method_declarations(child)
+    return total
+
+
+def _check_java(code: str, parser) -> tuple[bool, int | None, str | None, str]:
+    """Try the sample as a standalone compilation unit first (whole file with its own
+    package/import/class declaration -- Juliet/OWASP/CrossVul(Java) all extract whole
+    files, per the ingestion audit), and only fall back to wrapping it as a bare class
+    member if that fails. Wrapping a whole file's package/import statements inside
+    another class is always a syntax error regardless of the sample's own validity, so
+    trying unwrapped first is required, not optional -- an all-wrapped strategy silently
+    misclassifies every whole-file source as 100% invalid.
+    """
+    tree = parser.parse(code.encode("utf-8", errors="replace"))
     root = tree.root_node
-    valid = not root.has_error
-    n_funcs = None
-    # class_declaration -> class_body -> method_declaration*
-    for child in root.children:
-        if child.type == "class_declaration":
-            for sub in child.children:
-                if sub.type == "class_body":
-                    n_funcs = _count_named(sub, "method_declaration")
-    return valid, n_funcs, (None if valid else "tree-sitter ERROR node present")
+    if not root.has_error:
+        return True, _count_method_declarations(root), None, "compilation_unit"
+
+    wrapped = f"class __Wrapper__ {{\n{code}\n}}"
+    tree2 = parser.parse(wrapped.encode("utf-8", errors="replace"))
+    root2 = tree2.root_node
+    if not root2.has_error:
+        return True, _count_method_declarations(root2), None, "wrapped_member"
+
+    return False, None, "tree-sitter ERROR node present (both as compilation unit and wrapped)", "invalid"
 
 
-def run_lang(lang: str) -> pd.DataFrame:
+def _apply_support_filter(df: pd.DataFrame, min_cwe_count: int, xml_path: Path) -> pd.DataFrame:
+    """Reproduce the paper's Sec. 4.2 "Support" filter: drop vulnerable rows whose CWEs
+    all belong to canonical families with fewer than `min_cwe_count` GT occurrences.
+    Safe rows are never dropped. Identical logic to auxiliary/check_experiment_counts.py,
+    which is what established that this filter is exactly what turns the raw
+    data/enriched/merged counts into the paper's published Table 5 counts.
+    """
+    from collections import Counter
+
+    from analysis.canonical import CweCanonicalizer
+    from analysis.dataset import as_list
+
+    canon = CweCanonicalizer.from_xml(level="pillar_child", cwe_xml_path=str(xml_path))
+    families = [canon.families(as_list(cwes)) for cwes in df["cwes"]]
+    df = df.assign(_families=families)
+
+    family_counts = Counter()
+    for fams in df.loc[df["label"] == 1, "_families"]:
+        family_counts.update(fams)
+    frequent = {fam for fam, count in family_counts.items() if count >= min_cwe_count}
+
+    keep = (df["label"] == 0) | df["_families"].map(lambda fams: bool(set(fams) & frequent))
+    return df[keep].drop(columns="_families").reset_index(drop=True)
+
+
+def run_lang(lang: str, min_cwe_count: int | None, xml_path: Path) -> pd.DataFrame:
     enriched_path = ROOT / "data" / "enriched" / f"{lang}.parquet"
     if not enriched_path.exists():
         print(f"[{lang}] missing {enriched_path} -- run `main.py enrich` first. Skipping.")
         return pd.DataFrame()
 
+    cols = ["code", "source", "label", "cwes"] if min_cwe_count is not None else ["code", "source"]
     df = pd.read_parquet(enriched_path)
-    df = df[["code", "source"]] if "source" in df.columns else df[["code"]].assign(source="unknown")
+    df = df[[c for c in cols if c in df.columns]]
+    if "source" not in df.columns:
+        df = df.assign(source="unknown")
+
+    if min_cwe_count is not None:
+        n_before = len(df)
+        df = _apply_support_filter(df, min_cwe_count, xml_path)
+        print(f"[{lang}] Support filter (>= {min_cwe_count} GT occurrences): {n_before} -> {len(df)} rows")
+    df = df[["code", "source"]]
 
     if lang == "python":
         checker = lambda code: _check_python(code)
@@ -141,21 +191,30 @@ def run_lang(lang: str) -> pd.DataFrame:
 
     rows = []
     for _, r in df.iterrows():
-        valid, n_funcs, err = checker(str(r["code"]))
-        rows.append({"language": lang, "source": r["source"], "valid": valid, "n_top_level_functions": n_funcs})
+        valid, n_funcs, err, mode = checker(str(r["code"]))
+        rows.append({
+            "language": lang, "source": r["source"], "valid": valid,
+            "n_top_level_functions": n_funcs, "parse_mode": mode,
+        })
     return pd.DataFrame(rows)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--lang", default="all", help="comma-separated: c_cpp,java,python or 'all'")
+    ap.add_argument(
+        "--min-cwe-count", type=int, default=100,
+        help="Sec. 4.2 Support filter threshold (paper default: 100); pass 0 to disable and use the raw enriched population",
+    )
+    ap.add_argument("--cwe-xml", default=str(ROOT / "data" / "cwec_latest.xml"))
     args = ap.parse_args()
     langs = ["c_cpp", "java", "python"] if args.lang == "all" else [s.strip() for s in args.lang.split(",")]
+    min_cwe_count = None if args.min_cwe_count <= 0 else args.min_cwe_count
 
     frames = []
     for lang in langs:
         try:
-            frames.append(run_lang(lang))
+            frames.append(run_lang(lang, min_cwe_count, Path(args.cwe_xml)))
         except ImportError as exc:
             print(f"[{lang}] missing dependency -- {exc}. Run `uv sync` to install tree-sitter grammars.")
 
@@ -172,11 +231,15 @@ def main() -> None:
             pct_valid=("valid", "mean"),
             mean_top_level_functions=("n_top_level_functions", "mean"),
             pct_exactly_one_function=("n_top_level_functions", lambda s: (s == 1).mean()),
+            pct_compilation_unit=("parse_mode", lambda s: (s == "compilation_unit").mean()),
+            pct_wrapped_member=("parse_mode", lambda s: (s == "wrapped_member").mean()),
         )
         .reset_index()
     )
     summary["pct_valid"] = (summary["pct_valid"] * 100).round(2)
     summary["pct_exactly_one_function"] = (summary["pct_exactly_one_function"] * 100).round(2)
+    summary["pct_compilation_unit"] = (summary["pct_compilation_unit"] * 100).round(2)
+    summary["pct_wrapped_member"] = (summary["pct_wrapped_member"] * 100).round(2)
     print(summary.sort_values(["language", "pct_valid"]).to_string(index=False))
 
     print("\n=== Overall per language ===")
