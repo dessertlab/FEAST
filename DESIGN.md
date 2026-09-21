@@ -82,6 +82,31 @@ per-(row, family) schema, so they all feed `predictions.evaluate_predictions` (m
    values by that support. This weighted value is the headline; the macro mean and median
    are kept as context.
 
+**Missing-value convention.** A metric is NaN when its defining ratio is 0/0, and the two
+causes are handled differently (`aggregation.zero_fill`, the single definition used by
+both stages, by tau selection and the paired test in `mean_difference_ci`, and by the
+ablation aggregations in `analysis/scaling/common.py`):
+
+* *strategy failure* — `precision`, `npv`, `f1`, `f2`, `mcc` go NaN because the strategy's
+  own prediction vector is degenerate (no positive predictions, all-positive, or
+  constant). "No detection" is a failure, not a missing observation, so these are filled
+  with `0.0` at every aggregation site. Otherwise a family a strategy abandons drops out
+  of its own average instead of lowering it, which biases comparisons between strategies
+  that fail on different families.
+* *degenerate group* — `recall`/`fnr` (no positives in the slice), `specificity`/`fpr` (no
+  negatives), `roc_auc`/`pr_auc` (needs both) go NaN as a property of the (family, fold)
+  slice itself, identically for every strategy. These stay NaN and are dropped from the
+  reduction; filling them would invent a score nobody earned, and for the
+  lower-is-better `fpr`/`fnr` it would invent a perfect one.
+
+**Open point — weighted vs unweighted.** The headline table is support-weighted, while
+tau selection and the Wilcoxon/HL test are **unweighted over families** (one family, one
+observation). Both are internally consistent, but they are different quantities and must
+not be read against each other: on C/C++ the support-weighted gap over the 2ooN baseline
+is roughly 3x the macro one. A third variant lives in `analysis/scaling/common.py`, which
+weights *within* each fold and averages afterwards instead of the reverse. Which of these
+becomes *the* reported quantity is not settled yet.
+
 ## 6. Restriction (`analysis/experiment.py`)
 
 A family is analysed iff it is **supported** (fired by ≥1 tool) **and** has **≥K

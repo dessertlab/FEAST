@@ -35,6 +35,10 @@ Stage 5c Scaling study    main.py scaling-coverage | scaling-tools | scaling-dat
            within-language tool-count and dataset-size ablations, and a meta-regression
            that separates the dataset-level drivers from the language label
             ->  data/results/<lang>/.../ablation/  and  data/results/_cross_language/
+
+Stage 5d Replot           main.py plots
+           Regenerate plots + CI report from existing fusion CSVs (no re-fusion)
+            ->  data/results/<lang>/.../plots/
 ```
 
 ---
@@ -105,8 +109,10 @@ FEAST/
 │           ├── fusion_metrics_overall.csv     # support-weighted aggregate per strategy
 │           ├── fusion_detection_overall.csv   # vuln/safe detection metrics per strategy
 │           ├── fusion_tau_sweep.csv           # all (strategy, tau) combinations
-│           ├── fusion_operating_points.csv    # best-MCC tau per strategy
-│           └── plots/               # per-metric and per-family plots
+│           ├── fusion_operating_points.csv    # best-F1 tau per strategy
+│           ├── fusion_tau_selection_by_fold.csv  # tau picked per outer fold
+│           ├── fusion_tau_selected.csv        # aggregated nested tau selection (reused by `plots`)
+│           └── plots/               # per-metric plots, per-family heatmaps, CI forest plot
 ├── outputs/
 │   ├── stage1_c_cpp_stats.xlsx
 │   ├── stage1_java_stats.xlsx
@@ -461,8 +467,47 @@ The ML classifiers use tool fire indicators (one binary feature per tool) as inp
 | `fusion_metrics_overall.csv` | Support-weighted aggregate per strategy |
 | `fusion_detection_overall.csv` | Vuln/safe binary detection metrics per strategy |
 | `fusion_tau_sweep.csv` | All (base\_strategy, τ) combinations |
-| `fusion_operating_points.csv` | Best-MCC τ per strategy |
-| `plots/` | Per-metric bar charts and per-family performance plots |
+| `fusion_operating_points.csv` | Best-F1 τ per strategy (F1 is the pipeline's only τ criterion) |
+| `fusion_tau_selection_by_fold.csv` | τ chosen independently in each outer fold (fold-to-fold variability) |
+| `fusion_tau_selected.csv` | The aggregated nested τ selection actually used for the report; `plots` reuses it |
+| `plots/mean_difference_ci_f1.csv` | Paired per-family comparison vs the 2ooN baseline: Wilcoxon p, Hodges–Lehmann, 95% CI, support-weighted difference and effective N |
+| `plots/` | Per-metric bar charts, per-family heatmaps and the CI forest plot |
+
+**Metric aggregation.** Every headline number is built in two explicit stages
+(`analysis/aggregation.py`), and nothing in the repo re-implements them:
+
+1. **mean over folds** — per `(strategy, family)`, average each metric over the 5 held-out
+   folds; family support is *summed*, which equals the family's total ground-truth
+   occurrences because the folds partition the rows exactly once.
+2. **support-weighted mean over families** — per `(strategy, metric)`, weight the family
+   values by that support. This is the headline (`*_weighted`); the unweighted macro mean
+   (`*_macro`) and the median (`*_median`) are kept as context.
+
+Two consequences worth knowing before reading any CSV:
+
+* **`*_weighted` and `*_macro` answer different questions.** The headline table and the
+  τ selection are weighted and macro respectively: τ selection and the Wilcoxon test in
+  `plots/mean_difference_ci_f1.csv` treat each CWE family as one observation, while the
+  overall table weights by support. The CI report carries both (`mean_difference` and
+  `weighted_difference`) plus `n_effective`, Kish's effective family count, because the
+  support distribution is concentrated (on C/C++ one family holds ~44% of the positives).
+* **`f1_weighted` is not recomputable from `precision_weighted` and `recall_weighted`.**
+  F1 is computed inside each family from its own TP/FP/FN and then averaged; the harmonic
+  mean of two separately averaged columns is a different number. The columns are not
+  meant to reconcile.
+
+**Missing values** follow one convention, `analysis.aggregation.zero_fill`, applied at every
+aggregation site. Metrics that go NaN because the *strategy* produced a degenerate
+prediction vector (`precision`, `npv`, `f1`, `f2`, `mcc`) are scored 0.0 — abandoning a
+family is a failure, not a gap. Metrics that go NaN because the *(family, fold) slice* is
+degenerate (`recall`/`fnr` with no positives, `specificity`/`fpr` with no negatives,
+`roc_auc`/`pr_auc` needing both) stay NaN and drop out of the average, identically for
+every strategy.
+
+**τ selection** uses F1 and nothing else. It runs on a nested split *inside* the
+calibration fold (`cal_fit`/`cal_tune`, 75/25), never on the held-out fold being reported;
+the chosen variants are persisted to `fusion_tau_selected.csv` so `main.py plots`
+reproduces the same report instead of re-picking τ on held-out data.
 
 **Fusion strategies** included in every tier:
 
