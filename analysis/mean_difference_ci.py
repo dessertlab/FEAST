@@ -157,9 +157,17 @@ def best_tau_per_strategy(
 ) -> list[str]:
     """For each base strategy keep only the tau variant with the best mean metric.
 
-    Strategies without a tau suffix are passed through unchanged.  When all
-    variants of a base strategy have NaN for the metric the first variant is
-    kept as a fallback so the base strategy still appears in the plot.
+    Strategies without a tau suffix are passed through unchanged. NaN (e.g. F1 when a
+    variant makes zero positive predictions on a family -- precision is 0/0) is treated
+    as 0.0, matching ``_paired_difference``'s "no predictions is a failure, not a missing
+    value" convention used by the final report. Without this, ``pandas.Series.mean()``
+    silently drops NaN rows: raising tau until a variant abandons most families (their F1
+    goes NaN, not low) removes those families from the average instead of penalising it,
+    so the mean is computed over an ever-shrinking, ever-easier subset -- rewarding
+    coverage loss instead of penalising it. Filling with 0.0 first closes that loophole,
+    so tau selection optimises the same quantity ``_paired_difference`` later scores.
+    When all variants of a base strategy have empty data for the metric, the first
+    variant is kept as a fallback so the base strategy still appears in the plot.
     """
     ascending = metric in LOWER_IS_BETTER
     groups: dict[str, list[str]] = {}
@@ -178,7 +186,7 @@ def best_tau_per_strategy(
                 per_family.loc[per_family["strategy"] == v, metric],
                 errors="coerce",
             )
-            scores[v] = float(vals.mean()) if vals.notna().any() else float("nan")
+            scores[v] = float(vals.fillna(0.0).mean()) if not vals.empty else float("nan")
         valid = {v: s for v, s in scores.items() if not pd.isna(s)}
         if not valid:
             selected.append(variants[0])

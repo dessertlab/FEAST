@@ -15,6 +15,17 @@ by the main pipeline (``analysis.experiment.prepare_canonical``), and reports:
     pairing (per CWE family, N=families) behind the paper's Figure 4 --
 so the two variants are directly comparable to each other and to the published numbers.
 
+Both variants are scored at a *fixed* decision threshold tau, per language (see
+NESTED_TAU below) -- not tau=0.5, and not each variant's own best tau. tau materially
+changes BKS's precision/recall, so comparing the two variants at different thresholds
+would confound the smoothing effect with the threshold effect. The values in NESTED_TAU
+are the tau nested-selected for production BKS (m=2 smoothing) by
+``analysis.experiment._select_tau_nested`` -- i.e. chosen on a calibration-internal
+split, never on the held-out fold being scored -- read off the "bks_tau_0_X" row of each
+language's committed ``mean_difference_ci_f1.csv`` after a full-tier run. Applying that
+same tau to the raw variant isolates the smoothing effect; it does not claim to be the
+raw formula's own optimum.
+
 Raw-formula edge case not specified by the paper: a fire pattern never seen in
 calibration makes the ratio positives/total undefined (0/0). Here it is treated the same
 way every other strategy treats "no evidence" (score=0.0, prediction=False) -- a modelling
@@ -25,6 +36,7 @@ repo).
 
     uv run python auxiliary/bks_smoothing_ablation.py --lang all
     uv run python auxiliary/bks_smoothing_ablation.py --lang java --tier full
+    uv run python auxiliary/bks_smoothing_ablation.py --lang java --tau 0.5   # override
 """
 
 from __future__ import annotations
@@ -53,6 +65,12 @@ from analysis.mean_difference_ci import mean_difference_ci
 STRATEGY_SMOOTHED = "bks_smoothed_m2"
 STRATEGY_RAW = "bks_raw_eq11"
 BASELINE_THRESHOLD = 2  # matches the paper's 2ooN baseline for every language studied
+
+# tau nested-selected for production BKS (m=2), full tier, --calibration sensitivity,
+# specificity -- read from the "bks_tau_0_X" row of each language's
+# data/results/<lang>/pillar_child/full/plots/mean_difference_ci_f1.csv after the
+# 2026-09-21 re-run with analysis.experiment._select_tau_nested. See module docstring.
+NESTED_TAU = {"c_cpp": 0.1, "java": 0.7, "python": 0.3}
 
 
 def raw_bks_predictions(
@@ -101,7 +119,7 @@ def raw_bks_predictions(
     return pd.DataFrame(rows)
 
 
-def run_lang(language: str, tier: str, n_splits: int, seed: int) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+def run_lang(language: str, tier: str, n_splits: int, seed: int, tau: float) -> tuple[pd.DataFrame, pd.DataFrame] | None:
     min_cwe_count = TIER_MIN_COUNT.get(tier, n_splits)
     try:
         prep = prepare_canonical(language, "pillar_child", n_splits=n_splits,
@@ -113,6 +131,7 @@ def run_lang(language: str, tier: str, n_splits: int, seed: int) -> tuple[pd.Dat
     if not families:
         print(f"[{language}] no families survive restriction at tier={tier}")
         return None
+    print(f"[{language}] scoring both BKS variants at tau={tau}")
 
     frames = []
     for fold in sorted(folds["fold"].unique()):
@@ -120,9 +139,9 @@ def run_lang(language: str, tier: str, n_splits: int, seed: int) -> tuple[pd.Dat
         labels = precompute_labels(val_df, families)
         fire_index = build_fire_index(val_df, tools)
 
-        smoothed = bks_predictions(cal_df, val_df, tools, families, labels, fire_index)
+        smoothed = bks_predictions(cal_df, val_df, tools, families, labels, fire_index, tau=tau)
         smoothed["strategy"] = STRATEGY_SMOOTHED
-        raw = raw_bks_predictions(cal_df, val_df, tools, families, labels, fire_index)
+        raw = raw_bks_predictions(cal_df, val_df, tools, families, labels, fire_index, tau=tau)
         baseline = traditional_vote_predictions(
             val_df, tools, families, BASELINE_THRESHOLD, labels, fire_index)
 
@@ -135,6 +154,7 @@ def run_lang(language: str, tier: str, n_splits: int, seed: int) -> tuple[pd.Dat
     per_family_mean, overall = aggregate_fusion_metrics(per_family_per_fold)
     overall.insert(0, "language", language)
     overall.insert(1, "tier", tier)
+    overall.insert(2, "tau", tau)
 
     # Same test as Figure 4: Wilcoxon signed-rank on per-CWE-family fold-mean F1,
     # paired against the 2ooN baseline (N = number of surviving families).
@@ -143,6 +163,7 @@ def run_lang(language: str, tier: str, n_splits: int, seed: int) -> tuple[pd.Dat
         preselected_strategies=[STRATEGY_SMOOTHED, STRATEGY_RAW],
     )
     ci.insert(0, "language", language)
+    ci.insert(1, "tau", tau)
 
     out_dir = ROOT / "data" / "results" / "_cross_language"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -159,12 +180,15 @@ def main() -> None:
                      help="Family-support floor; the paper's headline numbers use 'full' (>=100 GT occurrences)")
     ap.add_argument("--n-splits", type=int, default=5)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--tau", type=float, default=None,
+                     help="Fixed decision threshold for both variants, overriding NESTED_TAU for every requested language")
     args = ap.parse_args()
 
     langs = ["c_cpp", "java", "python"] if args.lang == "all" else [args.lang]
     overall_rows, ci_rows = [], []
     for lang in langs:
-        result = run_lang(lang, args.tier, args.n_splits, args.seed)
+        tau = args.tau if args.tau is not None else NESTED_TAU[lang]
+        result = run_lang(lang, args.tier, args.n_splits, args.seed, tau)
         if result is None:
             continue
         overall, ci = result
@@ -179,12 +203,12 @@ def main() -> None:
     ci_all = pd.concat(ci_rows, ignore_index=True)
 
     print("\n=== BKS smoothed (m=2) vs. raw (paper Eq. 11) -- support-weighted overall metrics ===")
-    cols = ["language", "strategy", "f1_weighted", "precision_weighted", "recall_weighted",
+    cols = ["language", "tau", "strategy", "f1_weighted", "precision_weighted", "recall_weighted",
             "mcc_weighted", "pr_auc_weighted", "n_families"]
     print(overall_all[[c for c in cols if c in overall_all.columns]].to_string(index=False))
 
     print("\n=== Wilcoxon 95% CI vs. 2ooN baseline (same test + pairing behind Figure 4) ===")
-    ci_cols = ["language", "strategy", "baseline_strategy", "n_pairs", "mean_difference",
+    ci_cols = ["language", "tau", "strategy", "baseline_strategy", "n_pairs", "mean_difference",
                "hodges_lehmann", "p_value", "ci_low", "ci_high", "status"]
     print(ci_all[[c for c in ci_cols if c in ci_all.columns]].to_string(index=False))
 

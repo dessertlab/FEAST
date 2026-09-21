@@ -13,7 +13,7 @@ from analysis.mean_difference_ci import (
 from analysis.plot_style import rc_style
 
 
-def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/results"):
+def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/results", metric="f1"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.lines as mlines
@@ -35,7 +35,7 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
             csv_path = (
                 Path(results_root)
                 / lang / "pillar_child" / "full" / "plots"
-                / "mean_difference_ci_f1.csv"
+                / f"mean_difference_ci_{metric}.csv"
             )
             if not csv_path.exists():
                 print(f"Warning: {csv_path} does not exist. Skipping.")
@@ -124,7 +124,8 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
         fig.tight_layout(rect=(0, 0.02, 1, 0.98))
 
         suffix = "sans" if use_sans else "serif"
-        out_stem = Path(results_root) / f"combined_ci_{suffix}"
+        stem = "combined_ci" if metric == "f1" else f"combined_ci_{metric}"
+        out_stem = Path(results_root) / f"{stem}_{suffix}"
         fig.savefig(out_stem.with_suffix(".png"), dpi=300, bbox_inches="tight")
         fig.savefig(out_stem.with_suffix(".svg"), bbox_inches="tight")
         plt.close(fig)
@@ -135,7 +136,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--pvalues", action="store_true")
     parser.add_argument("--results-dir", type=str, default="data/results")
+    parser.add_argument("--metric", type=str, default="f1",
+                         help="Metric whose mean_difference_ci_<metric>.csv to plot (default: f1)")
     args = parser.parse_args()
 
-    make_combined_plot(show_pvalues=args.pvalues, use_sans=False, results_root=args.results_dir)
-    make_combined_plot(show_pvalues=args.pvalues, use_sans=True, results_root=args.results_dir)
+    make_combined_plot(show_pvalues=args.pvalues, use_sans=False, results_root=args.results_dir, metric=args.metric)
+    make_combined_plot(show_pvalues=args.pvalues, use_sans=True, results_root=args.results_dir, metric=args.metric)
