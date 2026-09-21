@@ -367,8 +367,7 @@ def run_language_level(
         save_csv(fold_tau_choices, results_dir / "fusion_tau_selection_by_fold.csv")
         save_mean_difference_ci_report(
             per_family_mean, results_dir / "plots", metric="f1", tools=tools,
-            per_family_per_fold=None, show_pvalues=show_pvalues,
-            preselected_strategies=selected_strategies,
+            show_pvalues=show_pvalues, preselected_strategies=selected_strategies,
         )
 
     _print_overall(language, level, overall, detection_overall)
@@ -417,7 +416,6 @@ def regenerate_plots(
     config_path = results_dir / "config.json"
     overall_path = results_dir / "fusion_metrics_overall.csv"
     per_family_path = results_dir / "fusion_metrics_per_family.csv"
-    per_family_per_fold_path = results_dir / "fusion_metrics_per_family_per_fold.csv"
     detection_path = results_dir / "fusion_detection_overall.csv"
     tau_path = results_dir / "fusion_tau_sweep.csv"
 
@@ -435,9 +433,6 @@ def regenerate_plots(
     overall = pd.read_csv(overall_path)
     per_family_mean = pd.read_csv(per_family_path)
     detection_overall = pd.read_csv(detection_path)
-    per_family_per_fold = (
-        pd.read_csv(per_family_per_fold_path) if per_family_per_fold_path.exists() else None
-    )
 
     console.print(f"[bold]Regenerating plots[/bold]  {language}/{level}  ({len(overall)} strategies)")
 
@@ -445,8 +440,7 @@ def regenerate_plots(
     save_best_variant_plots(overall, results_dir / "plots" / "best_variants")
     save_family_performance_plots(per_family_mean, overall, results_dir / "plots" / "top_cwe_families", tools=tools)
     save_mean_difference_ci_report(
-        per_family_mean, results_dir / "plots", metric="f1", tools=tools,
-        per_family_per_fold=None, show_pvalues=show_pvalues,
+        per_family_mean, results_dir / "plots", metric="f1", tools=tools, show_pvalues=show_pvalues,
     )
 
     tau_overall = tau_variant_table(detection_overall) if tau_path.exists() else pd.DataFrame()

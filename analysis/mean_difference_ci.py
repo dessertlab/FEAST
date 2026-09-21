@@ -4,14 +4,16 @@ This module replaces the parametric paired t-test (see ``_mean_difference_ci.py`
 staging/legacy version) with the non-parametric **Wilcoxon signed-rank test**.
 
 Rationale for switching:
-  The default pairing mode uses K=5 fold-level differences.  With N=5, the paired t-test
-  relies heavily on the normality assumption, which cannot be verified and is frequently
-  violated for F1/MCC differences.  The Wilcoxon signed-rank test is distribution-free and
-  more appropriate for small samples; it also preserves statistical validity when the
-  underlying distributions are skewed or heavy-tailed.
+  Pairing is per CWE family (N = number of families, e.g. 15-20): for each family, the
+  mean F1 across the 5 folds is compared between strategy and baseline (paper §5.3). The
+  paired t-test relies on a normality assumption that cannot be verified and is frequently
+  violated for F1/MCC differences. The Wilcoxon signed-rank test is distribution-free and
+  more appropriate here; it also preserves statistical validity when the underlying
+  distributions are skewed or heavy-tailed.
 
 Statistical procedure:
-  For each (strategy, baseline) pair, a vector of N paired differences d_i is computed.
+  For each (strategy, baseline) pair, a vector of N per-family paired differences d_i is
+  computed (N = number of surviving CWE families).
   - **Test statistic**: scipy ``wilcoxon(d, alternative='two-sided', method='auto')``.
     With N<=25 the exact distribution is used; otherwise the normal approximation applies.
   - **Point estimate**: Hodges-Lehmann estimator — median of all N(N+1)/2 Walsh averages
@@ -23,13 +25,12 @@ Statistical procedure:
     lies above 0 the strategy is classified as a statistically significant improvement;
     if entirely below 0, a degradation; otherwise inconclusive.
 
-Two pairing modes are supported:
-
-* **fold** (default, recommended): K=5 fold-level support-weighted aggregate values.
-  Requires ``per_family_per_fold``.
-
-* **family** (legacy): N = number of CWE families, fold-averaged metrics, no support
-  weighting.
+Note: an earlier revision of this module also supported a fold-level pairing mode (N=5,
+support-weighted across families per fold). It was never used by the pipeline (both
+``run_language_level`` and ``regenerate_plots`` always paired by family) and has been
+removed: with N=5 and no ties, the exact two-sided Wilcoxon test cannot reach p<0.05
+(minimum achievable p is 2/2^5=0.0625), which alone rules it out as the source of the
+paper's reported significant results.
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ from typing import Iterable, Sequence
 
 import pandas as pd
 
-from analysis.aggregation import REPORT_METRICS, SUPPORT_COLUMN
+from analysis.aggregation import REPORT_METRICS
 from analysis.fusion.common import FUSER_ORDER, canonical_strategy_order, split_tau_strategy
 
 LOWER_IS_BETTER = {"fpr", "fnr"}
@@ -149,36 +150,6 @@ def fusion_strategies(present: Iterable[str]) -> list[str]:
     return strategies
 
 
-def _fold_weighted_series(
-    per_family_per_fold: pd.DataFrame,
-    strategy: str,
-    metric: str,
-) -> pd.Series:
-    """Support-weighted metric per fold for one strategy (indexed by fold value)."""
-    sub = per_family_per_fold[per_family_per_fold["strategy"] == strategy]
-    result: dict = {}
-    for fold, group in sub.groupby("fold"):
-        values = pd.to_numeric(group[metric], errors="coerce")
-        weights = pd.to_numeric(group[SUPPORT_COLUMN], errors="coerce")
-        mask = values.notna() & weights.notna() & (weights > 0)
-        total = float(weights[mask].sum())
-        result[fold] = float((values[mask] * weights[mask]).sum() / total) if total > 0 else float("nan")
-    return pd.Series(result)
-
-
-def _paired_difference_folds(
-    per_family_per_fold: pd.DataFrame,
-    strategy: str,
-    baseline: str,
-    metric: str,
-) -> pd.Series:
-    """Fold-level paired differences: support-weighted(strategy) - support-weighted(baseline)."""
-    strat = _fold_weighted_series(per_family_per_fold, strategy, metric)
-    base = _fold_weighted_series(per_family_per_fold, baseline, metric)
-    common = strat.index.intersection(base.index)
-    return (strat[common] - base[common]).dropna().reset_index(drop=True)
-
-
 def best_tau_per_strategy(
     per_family: pd.DataFrame,
     strategies: list[str],
@@ -278,20 +249,15 @@ def mean_difference_ci(
     baselines: Sequence[str] = DEFAULT_BASELINES,
     tools: Sequence[str] = (),
     best_tau_only: bool = True,
-    per_family_per_fold: pd.DataFrame | None = None,
     preselected_strategies: Sequence[str] | None = None,
 ) -> pd.DataFrame:
     """Compute paired 95% CIs for each fusion strategy against each baseline.
 
-    ``difference`` is always ``strategy metric - baseline metric``. The ``status`` column
-    accounts for metric direction, so lower-is-better metrics treat negative intervals as
-    improvements.
-
-    ``per_family_per_fold``: when provided, the CI is computed on K fold-level paired
-    differences of the support-weighted metric (N = K folds).  This matches the
-    "overall (support-weighted across families)" headline table.  When None, falls back
-    to pairing across CWE families using the fold-averaged ``per_family`` table (N =
-    number of families) — legacy behaviour.
+    Pairing is per CWE family (N = number of surviving families): for each family, the
+    fold-averaged metric in ``per_family`` is compared between strategy and baseline
+    (paper §5.3). ``difference`` is always ``strategy metric - baseline metric``. The
+    ``status`` column accounts for metric direction, so lower-is-better metrics treat
+    negative intervals as improvements.
 
     ``best_tau_only``: when True (default) each base strategy contributes only its
     best-mean-metric tau variant.  Tau selection uses ``per_family`` (fold-averaged
@@ -302,8 +268,8 @@ def mean_difference_ci(
     selection never touches the held-out fold values being reported here. When given,
     this replaces the ``best_tau_per_strategy`` call entirely -- ``best_tau_only`` is
     ignored. Passing the outcome of a proper nested split closes the "which held-out
-    data selected tau" question raised in review: tau is fixed before ``per_family`` (or
-    ``per_family_per_fold``) is ever consulted for anything other than reporting.
+    data selected tau" question raised in review: tau is fixed before ``per_family`` is
+    ever consulted for anything other than reporting.
     """
     required = {"strategy", "family", metric}
     missing = required - set(per_family.columns)
@@ -349,26 +315,17 @@ def mean_difference_ci(
     rows: list[dict] = []
     for baseline_name, baseline_strategy in resolved:
         for strategy in strategies:
-            if per_family_per_fold is not None:
-                diffs = _paired_difference_folds(
-                    per_family_per_fold, strategy, baseline_strategy, metric
-                )
-                n_coverage_gain = 0
-                n_coverage_loss = 0
-            else:
-                diffs, n_coverage_gain, n_coverage_loss = _paired_difference(
-                    per_family, strategy, baseline_strategy, metric
-                )
+            diffs, n_coverage_gain, n_coverage_loss = _paired_difference(
+                per_family, strategy, baseline_strategy, metric
+            )
             n = int(len(diffs))
             mean = float(diffs.mean()) if n else float("nan")
             p_value, hl_estimate, ci_low, ci_high = _wilcoxon_ci(diffs, confidence_level=CI_LEVEL)
-            pairing = "fold" if per_family_per_fold is not None else "family"
             rows.append({
                 "baseline": baseline_name,
                 "baseline_strategy": baseline_strategy,
                 "strategy": strategy,
                 "metric": metric,
-                "pairing": pairing,
                 "n_pairs": n,
                 "mean_difference": mean,
                 "hodges_lehmann": hl_estimate,
@@ -743,7 +700,6 @@ def save_mean_difference_ci_report(
     tools: Sequence[str] = (),
     stem: str | None = None,
     best_tau_only: bool = True,
-    per_family_per_fold: pd.DataFrame | None = None,
     show_pvalues: bool = False,
     preselected_strategies: Sequence[str] | None = None,
 ) -> tuple[pd.DataFrame, list[Path]]:
@@ -751,8 +707,7 @@ def save_mean_difference_ci_report(
     out_dir.mkdir(parents=True, exist_ok=True)
     intervals = mean_difference_ci(
         per_family, metric=metric, baselines=baselines, tools=tools,
-        best_tau_only=best_tau_only, per_family_per_fold=per_family_per_fold,
-        preselected_strategies=preselected_strategies,
+        best_tau_only=best_tau_only, preselected_strategies=preselected_strategies,
     )
     name = stem or f"mean_difference_ci_{metric}"
     csv_path = out_dir / f"{name}.csv"
