@@ -430,7 +430,7 @@ Canonicalises CWE IDs to the direct children of CWE-1000 pillars (primary-path r
 | `--tier TIER` | `base` | Analysis tier (see below) |
 | `--min-cwe-count M` | set by `--tier` | Override the tier's family support floor |
 | `--threshold K` | `2` | K for the traditional K-of-N voting baseline |
-| `--calibration M1,...` | all pairs | Calibration metric pairs to include: `ppv`, `npv`, `sensitivity`, `specificity`, `fpr`, `fnr` |
+| `--calibration M1,...` | all pairs | Calibration metric pairs to include: `ppv`, `npv`, `sensitivity`, `specificity`, `fpr`, `fnr`. The paper (Eq. 2-3, 6-7) uses only `sensitivity,specificity` — pass it explicitly to reproduce the published numbers; the default additionally explores the `ppv`/`npv` and `fpr`/`fnr` pairs as an ablation. |
 | `--taumin T` | `0.1` | Lower bound of the τ sweep grid |
 | `--taumax T` | `0.9` | Upper bound of the τ sweep grid |
 | `--seed S` | `42` | Random seed for fold assignment |
@@ -488,10 +488,12 @@ uv run python main.py fusion --lang python
 uv run python main.py fusion --lang python --tier medium
 
 # full tier: families with ≥ 100 samples, adds DT + RF + GB
+# (note: this alone does not reproduce the paper's numbers -- see below)
 uv run python main.py fusion --lang python --tier full
 
-# full tier, all languages
-uv run python main.py fusion --tier full
+# reproduce the paper's headline results (Fig. 3/4): full tier restricted to the
+# sensitivity/specificity calibration pair the paper's equations use, all languages
+uv run python main.py fusion --tier full --calibration sensitivity,specificity
 
 # exclude one tool
 uv run python main.py fusion --lang python --exclude pylint
