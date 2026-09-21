@@ -1,7 +1,7 @@
 """Wilcoxon signed-rank test and Hodges-Lehmann confidence intervals for fusion-strategy differences.
 
-This module replaces the parametric paired t-test (see ``_mean_difference_ci.py`` for the
-staging/legacy version) with the non-parametric **Wilcoxon signed-rank test**.
+This module uses the non-parametric **Wilcoxon signed-rank test** in place of the
+parametric paired t-test used by an earlier revision of the pipeline.
 
 Rationale for switching:
   Pairing is per CWE family (N = number of families, e.g. 15-20): for each family, the
@@ -42,7 +42,7 @@ from typing import Iterable, Sequence
 
 import pandas as pd
 
-from analysis.aggregation import REPORT_METRICS
+from analysis.aggregation import REPORT_METRICS, SUPPORT_COLUMN, ZERO_FILL_METRICS, zero_fill
 from analysis.fusion.common import FUSER_ORDER, canonical_strategy_order, split_tau_strategy
 
 LOWER_IS_BETTER = {"fpr", "fnr"}
@@ -157,15 +157,16 @@ def best_tau_per_strategy(
 ) -> list[str]:
     """For each base strategy keep only the tau variant with the best mean metric.
 
-    Strategies without a tau suffix are passed through unchanged. NaN (e.g. F1 when a
-    variant makes zero positive predictions on a family -- precision is 0/0) is treated
-    as 0.0, matching ``_paired_difference``'s "no predictions is a failure, not a missing
-    value" convention used by the final report. Without this, ``pandas.Series.mean()``
-    silently drops NaN rows: raising tau until a variant abandons most families (their F1
-    goes NaN, not low) removes those families from the average instead of penalising it,
-    so the mean is computed over an ever-shrinking, ever-easier subset -- rewarding
-    coverage loss instead of penalising it. Filling with 0.0 first closes that loophole,
-    so tau selection optimises the same quantity ``_paired_difference`` later scores.
+    Strategies without a tau suffix are passed through unchanged. Missing values follow
+    the shared ``analysis.aggregation.zero_fill`` convention, so a variant that abandons
+    a family scores 0.0 there rather than dropping out of its own mean. This matters most
+    here: ``pandas.Series.mean()`` is skipna, so without the fill, raising tau until a
+    variant goes silent on most families (their F1 becomes NaN, not low) would shrink the
+    average onto an ever-easier subset -- rewarding coverage loss instead of penalising
+    it. With the fill, tau selection optimises the same quantity ``_paired_difference``
+    later scores. Note this is the *unweighted* mean over families: tau selection and the
+    paired test are macro, while the headline table is support-weighted (see
+    ``analysis.aggregation``).
     When all variants of a base strategy have empty data for the metric, the first
     variant is kept as a fallback so the base strategy still appears in the plot.
     """
@@ -182,11 +183,8 @@ def best_tau_per_strategy(
             continue
         scores: dict[str, float] = {}
         for v in variants:
-            vals = pd.to_numeric(
-                per_family.loc[per_family["strategy"] == v, metric],
-                errors="coerce",
-            )
-            scores[v] = float(vals.fillna(0.0).mean()) if not vals.empty else float("nan")
+            vals = zero_fill(per_family.loc[per_family["strategy"] == v, metric], metric)
+            scores[v] = float(vals.mean()) if not vals.empty else float("nan")
         valid = {v: s for v, s in scores.items() if not pd.isna(s)}
         if not valid:
             selected.append(variants[0])
@@ -201,20 +199,27 @@ def _paired_difference(
     strategy: str,
     baseline: str,
     metric: str,
-) -> tuple["pd.Series", int, int]:
-    """Return (diffs, n_coverage_gain, n_coverage_loss).
+) -> tuple["pd.Series", "pd.Series", int, int]:
+    """Return (diffs, weights, n_coverage_gain, n_coverage_loss).
 
-    ``n_coverage_gain`` counts families where the baseline is silent (F1=NaN)
-    but the strategy detects something (F1>0).
-    ``n_coverage_loss`` counts families where the strategy is silent (F1=NaN)
-    but the baseline detects something (F1>0).
+    ``weights`` is the family support aligned to ``diffs``, so the caller can report the
+    support-weighted difference (the headline estimand) alongside the unweighted vector
+    the Wilcoxon test consumes. It is empty when ``per_family`` carries no support column.
 
-    The baseline NaN is treated as F1=0 (standard zero-division convention:
-    when a deterministic classifier makes zero positive predictions its F1 is
-    exactly 0).
+    Missing values follow the shared ``analysis.aggregation.zero_fill`` convention,
+    applied symmetrically to both sides so that coverage-loss pairs (strategy silent,
+    baseline detects) enter as negative differences instead of being silently dropped.
+    Pairs where both sides are NaN carry no information and are excluded.
+
+    The coverage counters read NaN as "silent", which only holds for
+    ``ZERO_FILL_METRICS``; for any other metric NaN is a property of the family, not of
+    the strategy, so both counters are reported as 0.
+    ``n_coverage_gain`` counts families where the baseline is silent (metric=NaN) but the
+    strategy detects something (metric>0); ``n_coverage_loss`` is the mirror case.
     """
+    support_cols = [SUPPORT_COLUMN] if SUPPORT_COLUMN in per_family.columns else []
     strategy_values = (
-        per_family.loc[per_family["strategy"] == strategy, ["family", metric]]
+        per_family.loc[per_family["strategy"] == strategy, ["family", metric, *support_cols]]
         .rename(columns={metric: "strategy_value"})
     )
     baseline_values = (
@@ -226,18 +231,58 @@ def _paired_difference(
     baseline_metric_raw = pd.to_numeric(paired["baseline_value"], errors="coerce")
     baseline_nan = baseline_metric_raw.isna()
     strategy_nan = strategy_metric_raw.isna()
-    # F1=NaN means zero positive predictions (recall=0) for both deterministic baselines
-    # and ML strategies.  Apply fillna(0.0) symmetrically so that coverage-loss pairs
-    # (strategy silent, baseline detects) are included as negative differences rather
-    # than silently dropped.  Pairs where BOTH are NaN carry no information and are
-    # excluded explicitly.
-    strategy_metric = strategy_metric_raw.fillna(0.0)
-    baseline_metric = baseline_metric_raw.fillna(0.0)
-    n_coverage_gain = int((baseline_nan & strategy_metric_raw.notna() & (strategy_metric_raw > 0)).sum())
-    n_coverage_loss = int((strategy_nan & ~baseline_nan & (baseline_metric_raw > 0)).sum())
-    both_nan = baseline_nan & strategy_nan
-    diffs = (strategy_metric - baseline_metric)[~both_nan].reset_index(drop=True)
-    return diffs, n_coverage_gain, n_coverage_loss
+    strategy_metric = zero_fill(strategy_metric_raw, metric)
+    baseline_metric = zero_fill(baseline_metric_raw, metric)
+    if metric in ZERO_FILL_METRICS:
+        n_coverage_gain = int((baseline_nan & strategy_metric_raw.notna() & (strategy_metric_raw > 0)).sum())
+        n_coverage_loss = int((strategy_nan & ~baseline_nan & (baseline_metric_raw > 0)).sum())
+    else:
+        n_coverage_gain = n_coverage_loss = 0
+    # Pairs carrying no information: both sides NaN, or (for a non-zero-filled metric)
+    # a difference that stays NaN because one side is undefined for that family.
+    keep = ~(baseline_nan & strategy_nan)
+    diffs = (strategy_metric - baseline_metric)[keep]
+    keep = keep & diffs.notna().reindex(keep.index, fill_value=False)
+    weights = (
+        pd.to_numeric(paired.loc[keep, SUPPORT_COLUMN], errors="coerce")
+        if support_cols else pd.Series(dtype=float)
+    )
+    return (
+        diffs.dropna().reset_index(drop=True),
+        weights.reset_index(drop=True),
+        n_coverage_gain,
+        n_coverage_loss,
+    )
+
+
+def _support_weighted_difference(
+    diffs: "pd.Series",
+    weights: "pd.Series",
+) -> tuple[float, float]:
+    """Support-weighted paired difference and Kish's effective sample size.
+
+    The weighted value is the headline estimand -- "how much does the ensemble gain on the
+    bulk of real positives" -- and is reported next to the unweighted vector the Wilcoxon
+    test actually consumes. The two answer different questions and are not interchangeable:
+    the weighted one is dominated by the largest families (on C/C++ a single CWE carries
+    ~44% of the positives), the unweighted one gives every family the same voice.
+
+    ``n_effective`` = (sum w)^2 / sum(w^2) makes that concentration explicit: it is the
+    number of *equally weighted* families the weighted mean is worth. Report it whenever
+    the weighted difference is quoted, so a large weighted gain resting on one family
+    cannot be mistaken for a gain spread over all of them.
+    """
+    if diffs.empty or weights.empty or len(weights) != len(diffs):
+        return float("nan"), float("nan")
+    w = pd.to_numeric(weights, errors="coerce")
+    mask = w.notna() & (w > 0) & diffs.notna()
+    if not mask.any():
+        return float("nan"), float("nan")
+    w = w[mask].astype(float)
+    total = float(w.sum())
+    weighted = float((diffs[mask].astype(float) * w).sum() / total)
+    n_effective = float(total**2 / float((w**2).sum()))
+    return weighted, n_effective
 
 
 def _classify_difference(metric: str, ci_low: float, ci_high: float) -> str:
@@ -323,11 +368,12 @@ def mean_difference_ci(
     rows: list[dict] = []
     for baseline_name, baseline_strategy in resolved:
         for strategy in strategies:
-            diffs, n_coverage_gain, n_coverage_loss = _paired_difference(
+            diffs, weights, n_coverage_gain, n_coverage_loss = _paired_difference(
                 per_family, strategy, baseline_strategy, metric
             )
             n = int(len(diffs))
             mean = float(diffs.mean()) if n else float("nan")
+            weighted, n_effective = _support_weighted_difference(diffs, weights)
             p_value, hl_estimate, ci_low, ci_high = _wilcoxon_ci(diffs, confidence_level=CI_LEVEL)
             rows.append({
                 "baseline": baseline_name,
@@ -336,6 +382,8 @@ def mean_difference_ci(
                 "metric": metric,
                 "n_pairs": n,
                 "mean_difference": mean,
+                "weighted_difference": weighted,
+                "n_effective": n_effective,
                 "hodges_lehmann": hl_estimate,
                 "p_value": p_value,
                 "ci_low": ci_low,
@@ -464,8 +512,6 @@ def save_mean_difference_ci_plot(
 
         strategies = frame["strategy"].astype(str).tolist()
         labels = [strategy_label(strategy) for strategy in strategies]
-        metric = str(frame["metric"].iloc[0])
-
 
         y_positions = list(range(len(strategies)))
         fig_h = max(4.4, 0.34 * len(strategies) + 1.8)
@@ -564,8 +610,6 @@ def save_mean_difference_ci_plot(
 
         strategies = frame_1["strategy"].astype(str).tolist()
         labels = [strategy_label(strategy) for strategy in strategies]
-        metric = str(frame_1["metric"].iloc[0])
-
 
         # Align frame_2 to the same strategies order as frame_1
         frame_2 = frame_2.set_index("strategy").reindex(strategies).reset_index()
