@@ -73,6 +73,9 @@ from analysis.plot_style import FALLBACK_COLORS, LANG_TITLES, rc_style
 # The fusers' continuous score does not depend on tau, so one materialised tau variant is
 # enough to recover it; the curve re-thresholds that score on its own grid.
 REPRESENTATIVE_TAU = 0.5
+# The grid the pipeline reports and selects on; marked on the curve so the reader can see
+# how few operating points there really are behind it.
+REPORTED_TAUS = np.round(np.arange(0.1, 0.91, 0.1), 6)
 BASELINE_PREFIX = "traditional_"
 CURVE_KEY_SEP = "::"
 
@@ -266,8 +269,19 @@ def make_pr_curve_figure(
                 points = curve[curve["base_strategy"] == base]
                 if points.empty:
                     continue
+                # Thin line for the shape, markers on the taus the pipeline actually
+                # reports. The connecting segments are NOT measured: on C/C++ the scores
+                # are discrete enough that weighted recall falls from 0.997 to 0.647 to
+                # 0.262 across three adjacent taus, so a plain line would draw two long
+                # straight jumps and read as a smooth curve that was never observed.
+                # The markers show where the real operating points are.
                 ax.plot(points["recall"], points["precision"], color=colors[base],
-                        linestyle=dashes[base], linewidth=1.5, alpha=0.9, zorder=3)
+                        linestyle=dashes[base], linewidth=1.0, alpha=0.55, zorder=3)
+                reported = points[np.isclose(
+                    points["tau"].to_numpy()[:, None], REPORTED_TAUS[None, :], atol=1e-6
+                ).any(axis=1)]
+                ax.plot(reported["recall"], reported["precision"], color=colors[base],
+                        linestyle="none", marker="o", markersize=3.6, alpha=0.95, zorder=4)
 
             baseline = data["baseline"]
             if baseline is not None and baseline in data["overall"].index:
@@ -311,6 +325,8 @@ def make_pr_curve_figure(
             "tau in [0.1, 0.9] — the same two-stage aggregation as every headline number.\n"
             "At the low-recall end, families the strategy has gone silent on enter the mean as precision "
             "0.0, so that end reads as coverage loss, not imprecision.\n"
+            "Markers are the taus the pipeline reports; the segments between them are drawn, not "
+            "measured, and are long where the fusion scores are discrete.\n"
             "The area under these curves is not the PR-AUC: the legend's scalar is the support-weighted "
             "mean of each family's average precision, averaged over languages.",
             ha="center", va="bottom", fontsize=7.5, color="#555555", style="italic",
