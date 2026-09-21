@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from analysis.aggregation import SUPPORT_COLUMN
+from analysis.aggregation import SUPPORT_COLUMN, aggregate_fusion_metrics, zero_fill
 from analysis.mean_difference_ci import _resolve_baseline
 
 # The three languages the pipeline supports, ordered small -> large tool pool.
@@ -82,36 +82,21 @@ def load_per_family_per_fold(language: str, tier: str = "full", *, level: str = 
     return pd.read_csv(path)
 
 
-def fold_weighted_f1(per_family_per_fold: pd.DataFrame, strategy: str,
-                     metric: str = "f1") -> pd.Series:
-    """Support-weighted ``metric`` per fold for one strategy (indexed by fold).
-
-    Same aggregation the headline 'overall (support-weighted)' table uses, exposed here so
-    the ablation curves can report an *absolute* level, not only a difference.
-    """
-    sub = per_family_per_fold[per_family_per_fold["strategy"] == strategy]
-    out: dict = {}
-    for fold, group in sub.groupby("fold"):
-        values = pd.to_numeric(group[metric], errors="coerce")
-        weights = pd.to_numeric(group[SUPPORT_COLUMN], errors="coerce")
-        mask = values.notna() & weights.notna() & (weights > 0)
-        total = float(weights[mask].sum())
-        out[fold] = float((values[mask] * weights[mask]).sum() / total) if total > 0 else float("nan")
-    return pd.Series(out, name=metric)
-
-
 def overall_f1_by_strategy(per_family_per_fold: pd.DataFrame, metric: str = "f1") -> pd.Series:
-    """Mean-over-folds of the support-weighted ``metric``, one value per strategy.
+    """Headline support-weighted ``metric``, one value per strategy.
 
-    Reproduces the headline 'overall (support-weighted)' number without re-reading the
-    aggregated CSV, so it works on any (e.g. ablation) run held only in memory or in a
-    scratch directory.
+    Delegates to ``analysis.aggregation.aggregate_fusion_metrics``, so an ablation run held
+    only in memory or in a scratch directory is reduced by exactly the same two stages as
+    the committed headline table: mean over folds per (strategy, family) first, then the
+    support-weighted mean over families. Nothing here re-implements that aggregation.
     """
-    out = {
-        strategy: float(fold_weighted_f1(per_family_per_fold, strategy, metric).mean())
-        for strategy in per_family_per_fold["strategy"].astype(str).unique()
-    }
-    return pd.Series(out, name=metric).sort_values(ascending=False)
+    _per_family, overall = aggregate_fusion_metrics(per_family_per_fold, metric_columns=(metric,))
+    return (
+        overall.set_index("strategy")[f"{metric}_weighted"]
+        .rename(metric)
+        .astype(float)
+        .sort_values(ascending=False)
+    )
 
 
 def run_outcomes(per_family_per_fold: pd.DataFrame, *, metric: str = "f1",
@@ -183,9 +168,11 @@ def paired_delta_per_family_fold(
         merged["strategy"] = strategy
         merged["baseline_strategy"] = base_name
         merged["metric"] = metric
+        # Shared zero-fill convention: a strategy (or the baseline) abandoning a family
+        # in a fold enters the delta as 0.0, not as a dropped row.
         merged["delta"] = (
-            pd.to_numeric(merged["strategy_value"], errors="coerce")
-            - pd.to_numeric(merged["baseline_value"], errors="coerce")
+            zero_fill(merged["strategy_value"], metric)
+            - zero_fill(merged["baseline_value"], metric)
         )
         frames.append(merged)
 

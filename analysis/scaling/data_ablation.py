@@ -21,7 +21,6 @@ import pandas as pd
 
 from analysis.canonical import CANONICAL_LEVEL
 from analysis.scaling.common import (
-    dataset_covariates,
     load_per_family_per_fold,
     results_dir,
     run_outcomes,

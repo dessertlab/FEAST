@@ -87,6 +87,7 @@ def main() -> None:
 
     all_intervals = pd.concat(rows, ignore_index=True)
     cols = ["language", "baseline", "strategy", "n_pairs", "mean_difference",
+            "weighted_difference", "n_effective",
             "hodges_lehmann", "p_value", "ci_low", "ci_high", "status"]
     print(f"\n=== PR-AUC vs. 2ooN baseline (same test + pairing behind Figure 4, threshold-free) ===")
     print(all_intervals[[c for c in cols if c in all_intervals.columns]].to_string(index=False))

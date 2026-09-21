@@ -17,7 +17,7 @@ and write under ``data/results/`` next to the fusion outputs they explain.
 from analysis.scaling.common import (
     LANGUAGES,
     dataset_covariates,
-    fold_weighted_f1,
+    overall_f1_by_strategy,
     paired_delta_per_family_fold,
 )
 from analysis.scaling.coverage_xlang import compare_coverage
@@ -28,7 +28,7 @@ from analysis.scaling.tool_ablation import ablate_tools
 __all__ = [
     "LANGUAGES",
     "dataset_covariates",
-    "fold_weighted_f1",
+    "overall_f1_by_strategy",
     "paired_delta_per_family_fold",
     "compare_coverage",
     "ablate_tools",

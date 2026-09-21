@@ -3,15 +3,23 @@
 With ``k`` binary tools there are only ``2^k`` possible fire patterns per family. BKS is
 the *saturated* combiner: estimate ``P(vulnerable | pattern)`` directly from the
 calibration split and look it up on validation. It is the empirical ceiling of what these
-tools can yield — no fusion rule can beat the per-pattern positive rate. Rare patterns are
-shrunk toward the family prior with an m-estimate to avoid 0/1 from single observations.
+tools can yield — no fusion rule can beat the per-pattern positive rate.
+
+**The m-estimate is part of the method, not a variant of it.** The textbook estimator is
+the raw per-pattern rate ``#{f, y=1} / #{f}``, but with ``2^k`` cells and a calibration
+split of finite size, rare patterns are estimated from one or two observations and return
+exactly 0.0 or 1.0, while patterns never seen in calibration have no estimate at all. The
+lookup table is therefore always smoothed toward the family prior,
+``(positives + m·prior) / (total + m)`` with ``m = 2``, which leaves well-populated cells
+essentially untouched and pulls the sparse ones back to the prior (an unseen pattern
+scores exactly the prior). There is no raw-BKS code path: ``m`` is a parameter of the
+estimator, not a switch between two methods.
 """
 
 from __future__ import annotations
 
 from typing import Sequence
 
-import numpy as np
 import pandas as pd
 
 from analysis.fusion.common import build_fire_index, evidence_row, precompute_labels, sample_ids_of

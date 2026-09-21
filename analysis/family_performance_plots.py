@@ -157,7 +157,6 @@ def save_family_dot_heatmap(matrix: pd.DataFrame, support: pd.Series, metric: st
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import numpy as np
 
     if matrix.empty:
         return []
