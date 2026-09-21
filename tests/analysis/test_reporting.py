@@ -66,3 +66,17 @@ def test_best_variant_plots_write_svg_and_png(tmp_path):
     assert (tmp_path / "f1.svg").is_file()
     assert (tmp_path / "f1.png").is_file()
     assert "weighted (tau=0.5, cal=ppv/npv)" in (tmp_path / "f1.svg").read_text(encoding="utf-8")
+
+
+def test_selected_tau_table_roundtrips_through_disk(tmp_path):
+    """regenerate_plots must reuse the nested selection, not re-pick tau on held-out data."""
+    from analysis.experiment import TAU_SELECTION_FILE, _load_selected_tau, _selected_tau_table
+
+    selected = ["bks_tau_0_1", "naive_bayes_tau_0_5", "logistic_regression_tau_0_9"]
+    table = _selected_tau_table(selected)
+    assert table["base_strategy"].tolist() == ["bks", "naive_bayes", "logistic_regression"]
+    assert table["tau"].tolist() == [0.1, 0.5, 0.9]
+
+    assert _load_selected_tau(tmp_path) is None          # run predating the file
+    table.to_csv(tmp_path / TAU_SELECTION_FILE, index=False)
+    assert _load_selected_tau(tmp_path) == selected

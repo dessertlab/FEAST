@@ -13,7 +13,6 @@ the identical family space — there is no asymmetry between the two phases.
 
 from __future__ import annotations
 
-from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -152,13 +151,17 @@ def _build_operating_points(
     tau_overall: pd.DataFrame,
     detection_overall: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Best-MCC τ per fuser strategy, plus baseline rows (traditional / OR) appended.
+    """Best-F1 τ per fuser strategy, plus baseline rows (traditional / OR) appended.
+
+    F1 is the pipeline's single selection criterion, the same one used for the per-family
+    comparison (``_select_tau_nested``) and for the paper's reported results; no other
+    metric selects τ anywhere.
 
     Baselines have no τ sweep so they're taken directly from detection_overall with
     tau=NaN and base_strategy equal to the strategy name itself.
     """
     fuser_pts = (
-        tau_overall.sort_values("mcc", ascending=False, na_position="last")
+        tau_overall.sort_values("f1", ascending=False, na_position="last")
         .groupby("base_strategy", as_index=False)
         .first()
         if not tau_overall.empty else tau_overall.iloc[0:0].copy()
@@ -173,6 +176,29 @@ def _build_operating_points(
         baselines.insert(2, "tau", float("nan"))
 
     return pd.concat([fuser_pts, baselines], ignore_index=True)
+
+
+TAU_SELECTION_FILE = "fusion_tau_selected.csv"
+
+
+def _selected_tau_table(selected_strategies: list[str]) -> pd.DataFrame:
+    """One row per base strategy: the tau-suffixed name chosen by the nested selection."""
+    rows = []
+    for strategy in selected_strategies:
+        base, tau = split_tau_strategy(str(strategy))
+        rows.append({"base_strategy": base, "tau": tau, "strategy": strategy})
+    return pd.DataFrame(rows, columns=["base_strategy", "tau", "strategy"])
+
+
+def _load_selected_tau(results_dir: Path) -> list[str] | None:
+    """Read back the persisted nested selection, or None when the run predates it."""
+    path = results_dir / TAU_SELECTION_FILE
+    if not path.exists():
+        return None
+    table = pd.read_csv(path)
+    if "strategy" not in table.columns or table.empty:
+        return None
+    return table["strategy"].astype(str).tolist()
 
 
 def _select_tau_nested(
@@ -365,6 +391,10 @@ def run_language_level(
             calibration_metrics=calibration_metrics, taus=taus, tier=tier, metric="f1",
         )
         save_csv(fold_tau_choices, results_dir / "fusion_tau_selection_by_fold.csv")
+        # Persist the aggregated selection too: ``regenerate_plots`` must reuse exactly
+        # these strategies instead of re-picking tau from the held-out values it is
+        # about to report on (which would silently undo the nested selection).
+        save_csv(_selected_tau_table(selected_strategies), results_dir / TAU_SELECTION_FILE)
         save_mean_difference_ci_report(
             per_family_mean, results_dir / "plots", metric="f1", tools=tools,
             show_pvalues=show_pvalues, preselected_strategies=selected_strategies,
@@ -439,8 +469,21 @@ def regenerate_plots(
     save_strategy_plots(overall, results_dir / "plots")
     save_best_variant_plots(overall, results_dir / "plots" / "best_variants")
     save_family_performance_plots(per_family_mean, overall, results_dir / "plots" / "top_cwe_families", tools=tools)
+    # Tau must come from the nested calibration-internal selection persisted by
+    # ``run_language_level``. Falling back to ``best_tau_per_strategy`` here would
+    # re-pick tau on the very held-out values this report is about to present, so the
+    # fallback is loud rather than silent.
+    preselected = _load_selected_tau(results_dir)
+    if preselected is None:
+        console.print(
+            f"[yellow]{language}/{level}: {TAU_SELECTION_FILE} missing — tau will be "
+            f"re-selected from the held-out per-family values, which is NOT the nested "
+            f"selection used by 'fusion'. Re-run 'fusion' to get a comparable report."
+            "[/yellow]"
+        )
     save_mean_difference_ci_report(
         per_family_mean, results_dir / "plots", metric="f1", tools=tools, show_pvalues=show_pvalues,
+        preselected_strategies=preselected,
     )
 
     tau_overall = tau_variant_table(detection_overall) if tau_path.exists() else pd.DataFrame()
@@ -516,12 +559,12 @@ def _print_overall(language: str, level: str, overall: pd.DataFrame, detection: 
 
 
 def _print_operating_points(language: str, level: str, operating_points: pd.DataFrame) -> None:
-    """Best-MCC operating point per fuser strategy + baseline rows (traditional, OR).
+    """Best-F1 operating point per fuser strategy + baseline rows (traditional, OR).
 
-    Fuser strategies show their best-MCC explicit τ; baselines have no τ sweep so τ
+    Fuser strategies show their best-F1 explicit τ; baselines have no τ sweep so τ
     is shown as '—'.
     """
-    table = Table(title=f"{language} · {level} · detection @ best-MCC explicit τ")
+    table = Table(title=f"{language} · {level} · detection @ best-F1 explicit τ")
     table.add_column("strategy", style="cyan", no_wrap=True)
     for col in ("tau", "precision", "recall", "f1", "f2", "accuracy", "mcc", "roc_auc"):
         table.add_column(col, justify="right")
