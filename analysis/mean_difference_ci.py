@@ -21,6 +21,10 @@ Statistical procedure:
   - **95% CI**: achieved-level CI via the Walsh-average approach (scipy>=1.11 exposes
     ``wilcoxon`` confidence_level).  For older scipy this is approximated by
     ±1.96*(IQR / 1.349) / sqrt(N) (normal-approximation on the ranks).
+  - **Zero differences**: discarded by the test (scipy's default ``zero_method``), so
+    ``n_nonzero_pairs`` is reported next to ``n_pairs``. A family where neither the
+    strategy nor the baseline detects anything differs by exactly 0: it says nothing
+    about which of the two is better, but it does shrink the test's basis.
   - **Status**: identical classification logic as the t-test version: if the entire CI
     lies above 0 the strategy is classified as a statistically significant improvement;
     if entirely below 0, a degradation; otherwise inconclusive.
@@ -372,6 +376,15 @@ def mean_difference_ci(
                 per_family, strategy, baseline_strategy, metric
             )
             n = int(len(diffs))
+            # scipy's wilcoxon discards zero differences (zero_method="wilcox", its
+            # default), so the test's real basis is the non-zero count, not n_pairs.
+            # The gap is not cosmetic: on C/C++ both Naive Bayes and BKS pair 20 families
+            # of which 12 differ by exactly 0 -- neither the strategy nor the baseline
+            # scores a single true positive there -- leaving 8 usable observations that
+            # split 4 positive / 4 negative. That is what puts the Hodges-Lehmann estimate
+            # exactly on zero and makes the interval symmetric, and reading it as
+            # "20 families disagree mildly" gets the result backwards.
+            n_nonzero = int((diffs != 0).sum())
             mean = float(diffs.mean()) if n else float("nan")
             weighted, n_effective = _support_weighted_difference(diffs, weights)
             p_value, hl_estimate, ci_low, ci_high = _wilcoxon_ci(diffs, confidence_level=CI_LEVEL)
@@ -381,6 +394,7 @@ def mean_difference_ci(
                 "strategy": strategy,
                 "metric": metric,
                 "n_pairs": n,
+                "n_nonzero_pairs": n_nonzero,
                 "mean_difference": mean,
                 "weighted_difference": weighted,
                 "n_effective": n_effective,

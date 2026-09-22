@@ -143,3 +143,24 @@ def test_weights_stay_aligned_when_pairs_are_dropped():
     ).iloc[0]
     assert row["weighted_difference"] == approx(0.30)   # not skewed by the dropped weight
     assert row["n_pairs"] == 2
+
+
+def test_zero_differences_are_counted_separately_from_pairs():
+    """n_pairs overstates the Wilcoxon's basis: the test discards zero differences."""
+    rows = []
+    for family, (strategy_f1, baseline_f1) in {
+        # four families nobody detects: difference exactly 0, no information either way
+        "CWE-1": (0.0, 0.0), "CWE-2": (0.0, 0.0), "CWE-3": (0.0, 0.0), "CWE-4": (0.0, 0.0),
+        # two where the strategy genuinely wins
+        "CWE-5": (0.6, 0.2), "CWE-6": (0.5, 0.1),
+    }.items():
+        rows.append({"strategy": "bks_tau_0_5", "family": family, "f1": strategy_f1,
+                     "positive_support": 10})
+        rows.append({"strategy": "traditional_2_of_4", "family": family, "f1": baseline_f1,
+                     "positive_support": 10})
+
+    row = mean_difference_ci(
+        pd.DataFrame(rows), metric="f1", preselected_strategies=["bks_tau_0_5"]
+    ).iloc[0]
+    assert row["n_pairs"] == 6
+    assert row["n_nonzero_pairs"] == 2
