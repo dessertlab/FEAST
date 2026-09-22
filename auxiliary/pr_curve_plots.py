@@ -31,6 +31,9 @@ Reading the figure
   drawn as a cross.
 * **Curves have different lengths.** A strategy whose score saturates never reaches high
   recall at any tau; its curve is genuinely short, not truncated.
+* **The points are written to ``pr_curve_weighted_points.csv``** next to the figure, with
+  the baseline as a tau=NaN row, so any claim about the curves can be rechecked without
+  re-running the fusion.
 * **The area under these curves is NOT the PR-AUC.** The scalar PR-AUC reported elsewhere
   is the support-weighted mean of each family's average precision, a different quantity.
   It is shown per strategy in the legend; the area itself is deliberately not quantified.
@@ -248,6 +251,27 @@ def make_pr_curve_figure(
         for lang, data in collected.items()
     }
 
+    # Persist the points before drawing: a figure cannot be checked, and every claim made
+    # about these curves (which operating points exist, whether any of them dominates the
+    # baseline) has to be answerable without re-running the fusion to recover the scores.
+    points = []
+    for lang, curve in curves.items():
+        frame = curve.copy()
+        frame.insert(0, "language", lang)
+        baseline = collected[lang]["baseline"]
+        if baseline is not None and baseline in collected[lang]["overall"].index:
+            row = collected[lang]["overall"].loc[baseline]
+            frame = pd.concat([frame, pd.DataFrame([{
+                "language": lang, "base_strategy": baseline, "tau": float("nan"),
+                "recall": row["recall_weighted"], "precision": row["precision_weighted"],
+            }])], ignore_index=True)
+        points.append(frame)
+    points_table = pd.concat(points, ignore_index=True)
+    results_root.mkdir(parents=True, exist_ok=True)
+    points_path = results_root / "pr_curve_weighted_points.csv"
+    points_table.to_csv(points_path, index=False)
+    print(f"wrote {points_path}  ({len(points_table)} punti)")
+
     ordered_bases: list[str] = []
     for lang, curve in curves.items():
         present = list(curve["base_strategy"].unique())
@@ -333,8 +357,7 @@ def make_pr_curve_figure(
             wrap=True,
         )
 
-        written: list[Path] = []
-        results_root.mkdir(parents=True, exist_ok=True)
+        written: list[Path] = [points_path]
         for suffix, kwargs in ((".svg", {}), (".png", {"dpi": 200})):
             path = results_root / f"pr_curve_weighted{suffix}"
             fig.savefig(path, bbox_inches="tight", **kwargs)
