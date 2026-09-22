@@ -75,6 +75,7 @@ def test_paired_difference_scores_abandoned_families_as_zero():
     )
     # Three pairs survive: +0.20, 0 - 0.40, 0 - 0.30. No pair is silently dropped.
     assert sorted(round(d, 2) for d in diffs) == [-0.40, -0.30, 0.20]
+    # CWE-2 and CWE-3: the baseline covers them, the strategy does not
     assert (gain, loss) == (0, 2)
 
 
@@ -164,3 +165,22 @@ def test_zero_differences_are_counted_separately_from_pairs():
     ).iloc[0]
     assert row["n_pairs"] == 6
     assert row["n_nonzero_pairs"] == 2
+
+
+def test_coverage_counters_survive_zero_filled_input():
+    """mean_over_folds zero-fills before averaging, so 'silent' arrives here as 0.0."""
+    per_family = pd.DataFrame([
+        # baseline covers nothing on CWE-1 (already zero-filled upstream), strategy does
+        {"strategy": "traditional_2_of_4", "family": "CWE-1", "f1": 0.0, "positive_support": 10},
+        {"strategy": "bks_tau_0_5", "family": "CWE-1", "f1": 0.40, "positive_support": 10},
+        # mirror case on CWE-2
+        {"strategy": "traditional_2_of_4", "family": "CWE-2", "f1": 0.30, "positive_support": 10},
+        {"strategy": "bks_tau_0_5", "family": "CWE-2", "f1": 0.0, "positive_support": 10},
+        # neither covers CWE-3: not a gain, not a loss
+        {"strategy": "traditional_2_of_4", "family": "CWE-3", "f1": 0.0, "positive_support": 10},
+        {"strategy": "bks_tau_0_5", "family": "CWE-3", "f1": 0.0, "positive_support": 10},
+    ])
+    _diffs, _w, gain, loss = _paired_difference(
+        per_family, "bks_tau_0_5", "traditional_2_of_4", "f1"
+    )
+    assert (gain, loss) == (1, 1)

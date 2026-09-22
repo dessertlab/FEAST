@@ -13,7 +13,7 @@ from analysis.mean_difference_ci import (
 from analysis.plot_style import rc_style
 
 
-def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/results", metric="f1"):
+def make_combined_plot(use_sans=False, results_root="data/results", metric="f1"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.lines as mlines
@@ -88,8 +88,7 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
                     zorder=3,
                 )
 
-                if show_pvalues:
-                    annotate_pvalue(ax, hl, y, row)
+                annotate_pvalue(ax, hl, y, row)
 
             ax.set_yticks(y_positions, labels)
             ax.invert_yaxis()
@@ -134,11 +133,10 @@ def make_combined_plot(show_pvalues=False, use_sans=False, results_root="data/re
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pvalues", action="store_true")
     parser.add_argument("--results-dir", type=str, default="data/results")
     parser.add_argument("--metric", type=str, default="f1",
                          help="Metric whose mean_difference_ci_<metric>.csv to plot (default: f1)")
     args = parser.parse_args()
 
-    make_combined_plot(show_pvalues=args.pvalues, use_sans=False, results_root=args.results_dir, metric=args.metric)
-    make_combined_plot(show_pvalues=args.pvalues, use_sans=True, results_root=args.results_dir, metric=args.metric)
+    make_combined_plot(use_sans=False, results_root=args.results_dir, metric=args.metric)
+    make_combined_plot(use_sans=True, results_root=args.results_dir, metric=args.metric)

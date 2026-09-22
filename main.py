@@ -1353,7 +1353,6 @@ def cmd_fusion(args) -> None:
         enriched_dir=ENRICHED_DIR,
         results_root=RESULTS_DIR,
         tier=args.tier,
-        show_pvalues=args.pvalues,
     )
 
 
@@ -1363,11 +1362,11 @@ def cmd_plots(args) -> None:
     from analysis.combined_plots import make_combined_plot
 
     languages = KNOWN_LANGUAGE_SLUGS if args.lang.lower().strip() == 'all' else [_fusion_lang_slug(args.lang)]
-    regenerate_plots_all(languages=languages, tier=args.tier, results_root=args.results_dir, show_pvalues=args.pvalues)
+    regenerate_plots_all(languages=languages, tier=args.tier, results_root=args.results_dir)
 
     try:
-        make_combined_plot(show_pvalues=args.pvalues, use_sans=False, results_root=args.results_dir)
-        make_combined_plot(show_pvalues=args.pvalues, use_sans=True, results_root=args.results_dir)
+        make_combined_plot(use_sans=False, results_root=args.results_dir)
+        make_combined_plot(use_sans=True, results_root=args.results_dir)
     except Exception as e:
         print(f"Note: Could not generate combined plots: {e}")
 
@@ -1550,10 +1549,6 @@ examples:
         '--seed', type=int, default=42, metavar='S',
         help='Random seed for fold assignment  [default: 42]',
     )
-    fus.add_argument(
-        '--pvalues', action='store_true',
-        help='Show p-values above whiskers/error bars in the plot',
-    )
 
     # ── diagnose ───────────────────────────────────────────────────────────────
     dia = sub.add_parser(
@@ -1587,10 +1582,6 @@ examples:
     plt_p.add_argument(
         '--results-dir', type=Path, default=RESULTS_DIR, metavar='DIR', dest='results_dir',
         help=f'Root results directory  [default: {RESULTS_DIR}]',
-    )
-    plt_p.add_argument(
-        '--pvalues', action='store_true',
-        help='Show p-values above whiskers/error bars in the plot',
     )
 
     # ── list ───────────────────────────────────────────────────────────────────

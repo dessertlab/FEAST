@@ -286,7 +286,6 @@ def run_language_level(
     results_root: str | Path = "data/results",
     tier: str = "base",
     write_plots: bool = True,
-    show_pvalues: bool = False,
 ) -> dict:
     """Run the full experiment for one (language, canonical level).
 
@@ -397,7 +396,7 @@ def run_language_level(
         save_csv(_selected_tau_table(selected_strategies), results_dir / TAU_SELECTION_FILE)
         save_mean_difference_ci_report(
             per_family_mean, results_dir / "plots", metric="f1", tools=tools,
-            show_pvalues=show_pvalues, preselected_strategies=selected_strategies,
+            preselected_strategies=selected_strategies,
         )
 
     _print_overall(language, level, overall, detection_overall)
@@ -434,7 +433,6 @@ def regenerate_plots(
     *,
     tier: str = "base",
     results_root: str | Path = "data/results",
-    show_pvalues: bool = False,
 ) -> bool:
     """Regenerate all plots and tables for one (language, level, tier) from existing CSVs.
 
@@ -482,7 +480,7 @@ def regenerate_plots(
             "[/yellow]"
         )
     save_mean_difference_ci_report(
-        per_family_mean, results_dir / "plots", metric="f1", tools=tools, show_pvalues=show_pvalues,
+        per_family_mean, results_dir / "plots", metric="f1", tools=tools,
         preselected_strategies=preselected,
     )
 
@@ -503,7 +501,6 @@ def regenerate_plots_all(
     languages: list[str] | None = None,
     tier: str = "base",
     results_root: str | Path = "data/results",
-    show_pvalues: bool = False,
 ) -> list[bool]:
     """Regenerate plots for one or all languages."""
     from analysis.canonical import CANONICAL_LEVEL
@@ -513,7 +510,7 @@ def regenerate_plots_all(
     langs = languages if languages is not None else (
         [language] if language != "all" else ["c_cpp", "java", "python"]
     )
-    return [regenerate_plots(lang, level, tier=tier, results_root=results_root, show_pvalues=show_pvalues) for lang in langs]
+    return [regenerate_plots(lang, level, tier=tier, results_root=results_root) for lang in langs]
 
 
 # ── console output ──────────────────────────────────────────────────────────

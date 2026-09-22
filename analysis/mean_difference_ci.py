@@ -215,11 +215,11 @@ def _paired_difference(
     baseline detects) enter as negative differences instead of being silently dropped.
     Pairs where both sides are NaN carry no information and are excluded.
 
-    The coverage counters read NaN as "silent", which only holds for
-    ``ZERO_FILL_METRICS``; for any other metric NaN is a property of the family, not of
-    the strategy, so both counters are reported as 0.
-    ``n_coverage_gain`` counts families where the baseline is silent (metric=NaN) but the
-    strategy detects something (metric>0); ``n_coverage_loss`` is the mirror case.
+    The coverage counters only make sense for ``ZERO_FILL_METRICS``; for any other metric
+    NaN is a property of the family, not of the strategy, so both are reported as 0.
+    ``n_coverage_gain`` counts families the baseline does not cover (metric 0 after
+    zero-filling, whether it stayed silent or fired without ever being right) but the
+    strategy does (metric>0); ``n_coverage_loss`` is the mirror case.
     """
     support_cols = [SUPPORT_COLUMN] if SUPPORT_COLUMN in per_family.columns else []
     strategy_values = (
@@ -238,8 +238,13 @@ def _paired_difference(
     strategy_metric = zero_fill(strategy_metric_raw, metric)
     baseline_metric = zero_fill(baseline_metric_raw, metric)
     if metric in ZERO_FILL_METRICS:
-        n_coverage_gain = int((baseline_nan & strategy_metric_raw.notna() & (strategy_metric_raw > 0)).sum())
-        n_coverage_loss = int((strategy_nan & ~baseline_nan & (baseline_metric_raw > 0)).sum())
+        # "Covered" means the family yields at least one true positive, so read the
+        # zero-filled values, not the raw ones. Silence (NaN) and firing without ever
+        # being right (a genuine 0.0) are the same outcome for coverage, and since
+        # ``mean_over_folds`` now zero-fills before averaging, a silent family reaches
+        # here as 0.0 and never as NaN -- testing isna() here counted nothing at all.
+        n_coverage_gain = int(((baseline_metric == 0) & (strategy_metric > 0)).sum())
+        n_coverage_loss = int(((strategy_metric == 0) & (baseline_metric > 0)).sum())
     else:
         n_coverage_gain = n_coverage_loss = 0
     # Pairs carrying no information: both sides NaN, or (for a non-zero-filled metric)
@@ -499,10 +504,14 @@ def annotate_pvalue(
 def save_mean_difference_ci_plot(
     intervals: pd.DataFrame,
     out_stem: Path,
-    *,
-    show_pvalues: bool = False,
 ) -> list[Path]:
-    """Save a paper-style CI forest plot as SVG and PNG."""
+    """Save a paper-style CI forest plot as SVG and PNG.
+
+    Every point carries its p-value and coverage delta. These are not decoration: the
+    paper's own Figure 4 caption describes them as part of the figure, so leaving them
+    behind an off-by-default switch meant the documented command did not reproduce the
+    published plot. ``annotate_pvalue`` stays silent where there is nothing to say.
+    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.lines as mlines
@@ -575,8 +584,7 @@ def save_mean_difference_ci_plot(
                     markeredgecolor="#222222",
                     zorder=3,
                 )
-                if show_pvalues:
-                    annotate_pvalue(ax, hl, y, row)
+                annotate_pvalue(ax, hl, y, row)
 
             ax.set_yticks(y_positions, labels)
             ax.invert_yaxis()
@@ -678,8 +686,7 @@ def save_mean_difference_ci_plot(
                     markeredgecolor="#222222",
                     zorder=3,
                 )
-                if show_pvalues:
-                    annotate_pvalue(ax1, hl, y, row)
+                annotate_pvalue(ax1, hl, y, row)
 
             ax1.set_yticks(y_positions, labels)
             ax1.invert_yaxis()
@@ -718,8 +725,7 @@ def save_mean_difference_ci_plot(
                     markeredgecolor="#222222",
                     zorder=3,
                 )
-                if show_pvalues:
-                    annotate_pvalue(ax2, hl, y, row)
+                annotate_pvalue(ax2, hl, y, row)
 
             ax2.set_xlabel("")
             ax2.set_title("")
@@ -766,7 +772,6 @@ def save_mean_difference_ci_report(
     tools: Sequence[str] = (),
     stem: str | None = None,
     best_tau_only: bool = True,
-    show_pvalues: bool = False,
     preselected_strategies: Sequence[str] | None = None,
 ) -> tuple[pd.DataFrame, list[Path]]:
     """Compute intervals, write the CSV, and save the SVG/PNG forest plot."""
@@ -778,5 +783,5 @@ def save_mean_difference_ci_report(
     name = stem or f"mean_difference_ci_{metric}"
     csv_path = out_dir / f"{name}.csv"
     intervals.to_csv(csv_path, index=False)
-    plot_paths = save_mean_difference_ci_plot(intervals, out_dir / name, show_pvalues=show_pvalues)
+    plot_paths = save_mean_difference_ci_plot(intervals, out_dir / name)
     return intervals, [csv_path, *plot_paths]

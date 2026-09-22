@@ -20,7 +20,7 @@ mean_difference_ci_f1.csv to already exist (i.e. `main.py fusion --tier full
 --calibration sensitivity,specificity` must have been run first).
 
     uv run python auxiliary/pr_auc_ci_report.py
-    uv run python auxiliary/pr_auc_ci_report.py --lang java --pvalues
+    uv run python auxiliary/pr_auc_ci_report.py --lang java
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ from analysis.mean_difference_ci import save_mean_difference_ci_report
 METRIC = "pr_auc"
 
 
-def run_lang(language: str, results_root: Path, show_pvalues: bool) -> pd.DataFrame | None:
+def run_lang(language: str, results_root: Path) -> pd.DataFrame | None:
     results_dir = results_root / language / "pillar_child" / "full"
     config_path = results_dir / "config.json"
     per_family_path = results_dir / "fusion_metrics_per_family.csv"
@@ -63,7 +63,7 @@ def run_lang(language: str, results_root: Path, show_pvalues: bool) -> pd.DataFr
 
     intervals, paths = save_mean_difference_ci_report(
         per_family, results_dir / "plots", metric=METRIC, tools=tools,
-        preselected_strategies=selected_strategies, show_pvalues=show_pvalues,
+        preselected_strategies=selected_strategies,
     )
     print(f"[{language}] wrote {[p.name for p in paths]}")
     intervals.insert(0, "language", language)
@@ -74,13 +74,12 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--lang", default="all", choices=["c_cpp", "java", "python", "all"])
     ap.add_argument("--results-dir", type=str, default="data/results")
-    ap.add_argument("--pvalues", action="store_true")
     args = ap.parse_args()
 
     results_root = Path(args.results_dir)
     langs = ["c_cpp", "java", "python"] if args.lang == "all" else [args.lang]
 
-    rows = [r for lang in langs if (r := run_lang(lang, results_root, args.pvalues)) is not None]
+    rows = [r for lang in langs if (r := run_lang(lang, results_root)) is not None]
     if not rows:
         print("\nNo data available -- see the messages above.")
         return
@@ -93,8 +92,8 @@ def main() -> None:
     print(all_intervals[[c for c in cols if c in all_intervals.columns]].to_string(index=False))
 
     if args.lang == "all":
-        make_combined_plot(show_pvalues=args.pvalues, use_sans=False, results_root=str(results_root), metric=METRIC)
-        make_combined_plot(show_pvalues=args.pvalues, use_sans=True, results_root=str(results_root), metric=METRIC)
+        make_combined_plot(use_sans=False, results_root=str(results_root), metric=METRIC)
+        make_combined_plot(use_sans=True, results_root=str(results_root), metric=METRIC)
 
 
 if __name__ == "__main__":
