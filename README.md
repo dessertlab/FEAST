@@ -106,6 +106,7 @@ FEAST/
 │           ├── fusion_operating_points.csv    # best-F1 tau per strategy
 │           ├── fusion_tau_selection_by_fold.csv  # tau picked per outer fold
 │           ├── fusion_tau_selected.csv        # aggregated nested tau selection (reused by `plots`)
+│           ├── fusion_score_histogram.csv     # (score -> n, n_positive) per fold/strategy/family
 │           └── plots/               # per-metric plots, per-family heatmaps, CI forest plot
 ├── outputs/
 │   ├── stage1_c_cpp_stats.xlsx
@@ -464,6 +465,7 @@ The ML classifiers use tool fire indicators (one binary feature per tool) as inp
 | `fusion_operating_points.csv` | Best-F1 τ per strategy (F1 is the pipeline's only τ criterion) |
 | `fusion_tau_selection_by_fold.csv` | τ chosen independently in each outer fold (fold-to-fold variability) |
 | `fusion_tau_selected.csv` | The aggregated nested τ selection actually used for the report; `plots` reuses it |
+| `fusion_score_histogram.csv` | Per (fold, strategy, family, score): how many rows carry that score and how many are positive. The sufficient statistic for any threshold metric, so τ sweeps, PR curves and operating-point questions are answerable without re-running fusion |
 | `plots/mean_difference_ci_f1.csv` | Paired per-family comparison vs the 2ooN baseline: Wilcoxon p, Hodges–Lehmann, 95% CI, support-weighted difference and effective N |
 | `plots/` | Per-metric bar charts, per-family heatmaps and the CI forest plot |
 

@@ -139,20 +139,44 @@ def main() -> None:
 
         for lang in result["language"].unique():
             sub = result[result["language"] == lang]
-            fams = list(dict.fromkeys(sub["family"]))
-            patterns = sorted(sub["pattern"].unique())
-            grid = np.zeros((len(fams), len(patterns)))
+            # Families heaviest first, so the reader meets the ones that carry the result.
+            fams = list(sub.groupby("family")["family_support"].first()
+                        .sort_values(ascending=False).index)
+            # Drop patterns no family ever observes. With 6 tools that is most of the 64
+            # columns, and keeping them makes the axis unreadable while showing nothing:
+            # an empty column is exactly the absence the figure is meant to convey, and
+            # the count of dropped columns says it more precisely than 40 blank stripes.
+            populated = (sub.groupby("pattern")["count"].sum() > 0)
+            patterns = sorted(populated[populated].index)
+            n_dropped = int((~populated).sum())
+
+            grid = np.full((len(fams), len(patterns)), np.nan)
             for _, r in sub.iterrows():
-                grid[fams.index(r["family"]), patterns.index(r["pattern"])] = r["count"]
-            fig, ax = plt.subplots(figsize=(max(6, len(patterns) * 0.6), max(3, len(fams) * 0.5)))
-            im = ax.imshow(np.log10(grid + 1), aspect="auto", cmap="viridis")
+                if r["pattern"] in patterns and r["count"] > 0:
+                    grid[fams.index(r["family"]), patterns.index(r["pattern"])] = r["count"]
+
+            fig, ax = plt.subplots(figsize=(max(6, len(patterns) * 0.62 + 2),
+                                            max(3, len(fams) * 0.42 + 1.6)))
+            cmap = plt.get_cmap("viridis").with_extremes(bad="#f2f2f2")
+            im = ax.imshow(np.log10(grid), aspect="auto", cmap=cmap)
+            # Annotate each populated cell: on this data the interesting quantity is how
+            # few samples most cells hold, which a colour scale cannot convey.
+            for i in range(len(fams)):
+                for j in range(len(patterns)):
+                    if not np.isnan(grid[i, j]):
+                        v = int(grid[i, j])
+                        ax.text(j, i, f"{v:,}" if v < 10000 else f"{v/1000:.0f}k",
+                                ha="center", va="center", fontsize=6,
+                                color="#000000" if np.log10(v) > 3.2 else "#ffffff")
             ax.set_xticks(range(len(patterns)))
-            ax.set_xticklabels(patterns, rotation=90, fontsize=7)
+            ax.set_xticklabels(patterns, rotation=90, fontsize=7, family="monospace")
             ax.set_yticks(range(len(fams)))
             ax.set_yticklabels(fams, fontsize=8)
-            ax.set_xlabel("fire pattern (bit i = tool i fired)")
-            ax.set_title(f"{lang}: BKS cell population (log10(count+1))")
-            fig.colorbar(im, ax=ax, label="log10(count+1)")
+            ax.set_xlabel("fire pattern (bit i = tool i fired);  grey = never observed")
+            ax.set_title(f"{lang}: BKS cell population — {len(patterns)} of "
+                         f"{len(patterns) + n_dropped} cells ever observed "
+                         f"({n_dropped} never populated in any family)", fontsize=10)
+            fig.colorbar(im, ax=ax, label="log10(samples in cell)")
             fig.tight_layout()
             out_path = out_dir / f"bks_pattern_heatmap_{lang}.png"
             fig.savefig(out_path, dpi=150)

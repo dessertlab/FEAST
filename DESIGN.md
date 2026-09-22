@@ -105,6 +105,15 @@ not be read against each other: on C/C++ the support-weighted gap over the 2ooN 
 is roughly 3x the macro one. Which of the two becomes *the* reported quantity is not
 settled yet.
 
+**Score persistence.** Per-row scores are not written out — for C/C++ that is ~14M rows
+per language — but their *sufficient statistic* is: `fusion_score_histogram.csv` records,
+per `(fold, strategy, family, score)`, how many rows carry that score and how many are
+positive. Every threshold metric is a function of (TP, FP, FN) at a cut, and those follow
+from that table, so a τ sweep, a PR curve or "does any operating point dominate the
+baseline" is exact arithmetic on a few hundred KB instead of a two-hour re-run.
+`analysis.fusion.metrics_from_histogram` does the recovery; a test asserts it matches
+metrics computed on the rows.
+
 ## 6. Restriction (`analysis/experiment.py`)
 
 A family is analysed iff it is **supported** (fired by ≥1 tool) **and** has **≥K
