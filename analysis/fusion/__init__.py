@@ -36,6 +36,8 @@ from analysis.fusion.predictions import (
     detection_metrics,
     evaluate_predictions,
     expand_tau_variants,
+    metrics_from_histogram,
+    score_histogram,
 )
 from analysis.fusion.traditional import traditional_vote_predictions
 from analysis.fusion.weighted import DEFAULT_WEIGHTED_STRATEGIES, WeightedVotingStrategy, weighted_vote_predictions
@@ -44,6 +46,8 @@ __all__ = [
     "run_fusion",
     "evaluate_predictions",
     "detection_from_predictions",
+    "metrics_from_histogram",
+    "score_histogram",
     "detection_metrics",
     "order_by_strategy",
     "canonical_strategy_order",

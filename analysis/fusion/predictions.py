@@ -119,6 +119,65 @@ def evaluate_predictions(predictions: pd.DataFrame, group_cols: Iterable[str] = 
     return pd.DataFrame(rows)
 
 
+def score_histogram(predictions: pd.DataFrame) -> pd.DataFrame:
+    """Collapse per-row scores to the sufficient statistic for any threshold metric.
+
+    The pipeline does not persist per-row scores: for C/C++ that would be ~14M rows per
+    language, and every downstream question about thresholds -- the PR curves, a tau
+    sweep, whether any operating point dominates the baseline -- therefore costs a full
+    re-run of calibration and fusion just to recover numbers the run already had.
+
+    It does not need to. Every threshold metric is a function of (TP, FP, FN) at a cut,
+    and those follow from counting, per distinct score, how many rows carry it and how
+    many of those are positive. Since a fusion score is a deterministic function of an
+    at-most-2^N-valued fire vector, the distinct scores per (strategy, family) number in
+    the tens, so this table is four orders of magnitude smaller than the rows it
+    summarises and loses nothing that a threshold can ask.
+
+    Returns one row per (strategy, family, score) with ``n`` rows carrying that score and
+    ``n_positive`` of them labelled vulnerable. Tau-suffixed variants are collapsed to
+    their base strategy: expanding tau changes the decision, never the score.
+    """
+    frame = predictions.copy()
+    frame["strategy"] = frame["strategy"].map(lambda name: split_tau_strategy(str(name))[0])
+    frame["label"] = frame["label"].astype(bool)
+    out = (
+        frame.groupby(["strategy", "family", "score"], as_index=False, sort=True)
+        .agg(n=("label", "size"), n_positive=("label", "sum"))
+    )
+    out["n_positive"] = out["n_positive"].astype(int)
+    return out
+
+
+def metrics_from_histogram(histogram: pd.DataFrame, taus: Iterable[float]) -> pd.DataFrame:
+    """Per-(strategy, family, tau) metrics recovered from ``score_histogram`` alone.
+
+    Exact, not approximate: at threshold tau the positives are every score >= tau, so the
+    counts come straight from the histogram. This is what makes the persisted table a
+    replacement for the per-row scores rather than a summary of them.
+    """
+    rows: list[dict] = []
+    for (strategy, family), group in histogram.groupby(["strategy", "family"], sort=False):
+        scores = group["score"].to_numpy(dtype=float)
+        n = group["n"].to_numpy(dtype=float)
+        pos = group["n_positive"].to_numpy(dtype=float)
+        total_positive = float(pos.sum())
+        for tau in taus:
+            fired = scores >= tau
+            tp = float(pos[fired].sum())
+            predicted = float(n[fired].sum())
+            precision = tp / predicted if predicted > 0 else 0.0
+            recall = tp / total_positive if total_positive > 0 else float("nan")
+            den = precision + recall
+            rows.append({
+                "strategy": strategy, "family": family, "tau": float(tau),
+                "precision": precision, "recall": recall,
+                "f1": (2 * precision * recall / den) if den > 0 else 0.0,
+                "positive_support": int(total_positive),
+            })
+    return pd.DataFrame(rows)
+
+
 def detection_from_predictions(predictions: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
     """Collapse per-(row, family) predictions to a per-(strategy, row) detection task.
 

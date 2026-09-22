@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from pytest import approx
 from analysis.calibration import compute_reliability
 from analysis.fusion import run_fusion
 from analysis.fusion.common import DEFAULT_METRIC_PAIRS, build_fire_index, metric_lookup, metric_pairs_for_calibration, precompute_labels, taus_in_range
@@ -130,3 +131,52 @@ def test_tau_variants_are_materialised_as_strategies():
     table = tau_variant_table(metrics)
     assert set(table["tau"]) == set(DEFAULT_TAUS)
     assert set(table["base_strategy"]) == {"bks"}
+
+
+def test_score_histogram_reproduces_per_family_metrics_exactly():
+    """The persisted histogram must be a replacement for per-row scores, not a summary.
+
+    If metrics recovered from the histogram differ from those computed on the rows, the
+    file is a lossy digest and any later analysis built on it silently drifts from the
+    pipeline it claims to describe.
+    """
+    import numpy as np
+    from analysis.fusion.predictions import (
+        binary_metrics,
+        metrics_from_histogram,
+        score_histogram,
+    )
+
+    rng = np.random.default_rng(7)
+    n = 900
+    # Few distinct scores, heavy ties: the real shape of a fire-vector-derived score.
+    scores = rng.choice([0.02, 0.05, 0.13, 0.31, 0.68], size=n)
+    predictions = pd.DataFrame({
+        "strategy": rng.choice(["bks_tau_0_5", "naive_bayes_tau_0_5"], size=n),
+        "family": rng.choice(["CWE-1", "CWE-2", "CWE-3"], size=n),
+        "score": scores,
+        "label": rng.random(n) < (0.1 + scores),
+    })
+
+    taus = [0.01, 0.05, 0.10, 0.31, 0.50, 0.90]
+    recovered = metrics_from_histogram(score_histogram(predictions), taus).set_index(
+        ["strategy", "family", "tau"]
+    )
+
+    base = predictions.assign(
+        strategy=predictions["strategy"].str.replace(r"_tau_\d_\d$", "", regex=True)
+    )
+    for (strategy, family), group in base.groupby(["strategy", "family"]):
+        for tau in taus:
+            direct = binary_metrics(
+                group["label"].tolist(),
+                (group["score"] >= tau).tolist(),
+                group["score"].tolist(),
+            )
+            row = recovered.loc[(strategy, family, tau)]
+            assert row["positive_support"] == direct["positive_support"]
+            assert row["recall"] == approx(direct["recall"])
+            # binary_metrics returns None for 0/0 precision; the histogram zero-fills it,
+            # which is the project-wide convention for "made no positive prediction".
+            assert row["precision"] == approx(direct["precision"] or 0.0)
+            assert row["f1"] == approx(direct["f1"] or 0.0)

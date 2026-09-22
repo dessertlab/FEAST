@@ -40,7 +40,7 @@ from analysis.fusion.common import (
     split_tau_strategy,
     taus_in_range,
 )
-from analysis.fusion.predictions import tau_variant_table
+from analysis.fusion.predictions import score_histogram, tau_variant_table
 from analysis.mean_difference_ci import best_tau_per_strategy, fusion_strategies, save_mean_difference_ci_report
 from analysis.reporting import save_best_variant_plots, save_config, save_csv, save_strategy_plots
 
@@ -318,7 +318,7 @@ def run_language_level(
     taus = taus_in_range(tau_min, tau_max)
 
     # ── cross-validation ──────────────────────────────────────────────────────
-    reliability_frames, per_family_frames, detection_frames = [], [], []
+    reliability_frames, per_family_frames, detection_frames, histogram_frames = [], [], [], []
     for fold in sorted(folds["fold"].unique()):
         console.print(f"  fold {fold}: calibrating + fusing …")
         cal_df, val_df = split_train_validation(cdf, folds, validation_fold=fold)
@@ -338,6 +338,13 @@ def run_language_level(
         detection = detection_metrics(detection_from_predictions(predictions, val_df))
         detection.insert(0, "fold", fold)
         detection_frames.append(detection)
+
+        # Sufficient statistic for every threshold question, so that later analyses
+        # (tau sweeps, PR curves, dominance checks) do not have to re-run fusion just to
+        # recover scores this run already computed. See predictions.score_histogram.
+        histogram = score_histogram(predictions)
+        histogram.insert(0, "fold", fold)
+        histogram_frames.append(histogram)
 
     per_family_per_fold = pd.concat(per_family_frames, ignore_index=True)
     per_family_mean, overall = aggregate_fusion_metrics(per_family_per_fold)
@@ -370,6 +377,7 @@ def run_language_level(
     save_csv(canonical_map, results_dir / "canonical_map.csv")
     save_csv(folds, results_dir / "folds.csv")
     save_csv(pd.concat(reliability_frames, ignore_index=True), results_dir / "calibration_reliability.csv")
+    save_csv(pd.concat(histogram_frames, ignore_index=True), results_dir / "fusion_score_histogram.csv")
     save_csv(per_family_per_fold, results_dir / "fusion_metrics_per_family_per_fold.csv")
     save_csv(per_family_mean, results_dir / "fusion_metrics_per_family.csv")
     save_csv(overall, results_dir / "fusion_metrics_overall.csv")
