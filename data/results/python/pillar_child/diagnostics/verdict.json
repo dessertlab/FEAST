@@ -17,7 +17,6 @@
   "tools": [
     "bandit",
     "codeql",
-    "devaic",
     "pylint",
     "semgrep"
   ]
