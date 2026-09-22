@@ -84,8 +84,7 @@ per-(row, family) schema, so they all feed `predictions.evaluate_predictions` (m
 
 **Missing-value convention.** A metric is NaN when its defining ratio is 0/0, and the two
 causes are handled differently (`aggregation.zero_fill`, the single definition used by
-both stages, by tau selection and the paired test in `mean_difference_ci`, and by the
-ablation aggregations in `analysis/scaling/common.py`):
+both stages, and by tau selection and the paired test in `mean_difference_ci`):
 
 * *strategy failure* — `precision`, `npv`, `f1`, `f2`, `mcc` go NaN because the strategy's
   own prediction vector is degenerate (no positive predictions, all-positive, or
@@ -103,9 +102,8 @@ ablation aggregations in `analysis/scaling/common.py`):
 tau selection and the Wilcoxon/HL test are **unweighted over families** (one family, one
 observation). Both are internally consistent, but they are different quantities and must
 not be read against each other: on C/C++ the support-weighted gap over the 2ooN baseline
-is roughly 3x the macro one. A third variant lives in `analysis/scaling/common.py`, which
-weights *within* each fold and averages afterwards instead of the reverse. Which of these
-becomes *the* reported quantity is not settled yet.
+is roughly 3x the macro one. Which of the two becomes *the* reported quantity is not
+settled yet.
 
 ## 6. Restriction (`analysis/experiment.py`)
 

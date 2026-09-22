@@ -22,9 +22,8 @@ different situations produce that NaN, and they must not be handled the same way
   prediction vector (MCC), or an all-positive vector (NPV). "No detection" is a failure,
   not a missing observation, so the standard zero-division convention scores it 0.0.
   These are ``ZERO_FILL_METRICS``, and ``zero_fill`` is applied to them at *every*
-  aggregation site (both stages here, the tau selection and the paired differences in
-  ``analysis.mean_difference_ci``, and the ablation aggregations in
-  ``analysis.scaling.common``) so that a strategy abandoning a family is penalised
+  aggregation site (both stages here, and the tau selection and paired differences in
+  ``analysis.mean_difference_ci``) so that a strategy abandoning a family is penalised
   consistently rather than silently dropped from its own average. Without this, families
   a strategy fails to cover fall out of its mean instead of lowering it -- and since
   different strategies (notably weak baselines) fail on different families, the
