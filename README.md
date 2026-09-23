@@ -199,6 +199,83 @@ Parquet files produced by Stage 2 add two columns:
 
 ---
 
+## Static analysis tools
+
+The eight SATs, their versions, and the exact rulesets they were run with. Every tool is
+configured to maximise security coverage and to operate without compilation artifacts,
+using source-only extraction where the tool supports it. Reports land in
+`data/SAT-reports/<lang>.json` and are collapsed into per-tool CWE columns by
+`main.py enrich`.
+
+| Tool | Version | C/C++ | Java | Python |
+|------|---------|:-----:|:----:|:------:|
+| CodeQL | 2.23.5 | ✓ | ✓ | ✓ |
+| Semgrep | 1.163.0 | ✓ | ✓ | ✓ |
+| Joern | 4.0.543 | ✓ | ✓ | — |
+| Cppcheck | 2.10 | ✓ | — | — |
+| Flawfinder | 2.0.20 | ✓ | — | — |
+| Ikos | 3.5 | ✓ | — | — |
+| Bandit | 1.9.4 | — | — | ✓ |
+| Pylint | 4.0.5 | — | — | ✓ |
+
+### CodeQL
+
+Run in source-only extraction mode (`--build-mode=none`). Three query specifications per
+language — the `security-and-quality` suite plus the security query directories, including
+the experimental ones:
+
+```
+codeql/cpp-queries:codeql-suites/cpp-security-and-quality.qls
+codeql/cpp-queries:Security/CWE
+codeql/cpp-queries:experimental/Security/CWE
+
+codeql/java-queries:codeql-suites/java-security-and-quality.qls
+codeql/java-queries:Security/CWE
+codeql/java-queries:experimental/Security/CWE
+
+codeql/python-queries:codeql-suites/python-security-and-quality.qls
+codeql/python-queries:Security
+codeql/python-queries:experimental/Security
+```
+
+Note the asymmetry: the Python query pack uses a flat `Security` layout, the C/C++ and
+Java packs nest under `Security/CWE`. Note also that `security-and-quality.qls` already
+pulls in the non-experimental security queries, so the second line of each block is
+redundant with the first; CodeQL deduplicates, so the overlap is harmless.
+
+### Semgrep
+
+Nineteen registry packs, grouped here by what they cover:
+
+| Purpose | Packs |
+|---------|-------|
+| Language-specific | `p/c`, `p/cpp-audit`, `p/c-audit-banned-functions`, `p/java`, `p/python`, `p/flask` |
+| General security | `p/default`, `p/security-audit`, `p/r2c-security-audit`, `p/r2c-bug-scan`, `p/secure-defaults`, `p/security-code-scan` |
+| Standards-driven | `p/cwe-top-25`, `p/owasp-top-ten` |
+| Targeted classes | `p/sql-injection`, `p/command-injection`, `p/security-headers`, `p/secrets` |
+
+### Remaining tools
+
+| Tool | Configuration |
+|------|---------------|
+| Joern | Built-in scanner query database; findings at severity `error` and `warning` only |
+| Cppcheck | Warning-level checks enabled |
+| Flawfinder | Minimum severity threshold of 3 out of 5, to suppress low-confidence findings |
+| Ikos | Full suite of internal static analyzers |
+| Bandit | Default built-in ruleset |
+| Pylint | All non-security checks suppressed; only security-related message codes enabled |
+
+### CWE attribution
+
+CodeQL, Semgrep, Bandit, Cppcheck and Flawfinder report CWE identifiers natively in their
+structured output. Pylint, Joern and Ikos emit tool-specific message codes or free text, so
+each distinct rule was mapped to a CWE by hand against the MITRE catalogue and the tool
+documentation — 89 rules in total (16 Pylint, 51 Joern, 22 Ikos). The mapping was produced
+independently by three annotators and reconciled to full agreement; see
+`rule_cwe_annotation_table.csv`.
+
+---
+
 ## CWE classification
 
 The pipeline classifies every CWE ID against `cwec_latest.xml` from MITRE:
