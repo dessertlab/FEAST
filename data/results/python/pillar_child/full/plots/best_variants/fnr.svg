@@ -2,31 +2,31 @@
 <style>text{font-family:Arial,sans-serif;font-size:12px}.t{font-size:16px;font-weight:700}.ax{stroke:#888;stroke-width:1}.bar{fill:#3568a8}.v{fill:#222}</style>
 <text class="t" x="0" y="20">fnr best variant per strategy (support-weighted)</text>
 <line class="ax" x1="367" y1="34" x2="367" y2="548"/>
-<text x="0" y="57">xgboost (tau=0.1)</text>
+<text x="0" y="57">logistic_regression (tau=0.1)</text>
 <rect class="bar" x="367" y="42" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="57">0.000</text>
 <text x="0" y="85">logistic_interactions (tau=0.1)</text>
 <rect class="bar" x="367" y="70" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="85">0.000</text>
-<text x="0" y="113">logistic_regression (tau=0.1)</text>
+<text x="0" y="113">xgboost (tau=0.1)</text>
 <rect class="bar" x="367" y="98" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="113">0.000</text>
 <text x="0" y="141">gradient_boosting (tau=0.1)</text>
 <rect class="bar" x="367" y="126" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="141">0.000</text>
-<text x="0" y="169">random_forest (tau=0.1)</text>
+<text x="0" y="169">decision_tree (tau=0.1)</text>
 <rect class="bar" x="367" y="154" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="169">0.000</text>
-<text x="0" y="197">decision_tree (tau=0.1)</text>
+<text x="0" y="197">random_forest (tau=0.1)</text>
 <rect class="bar" x="367" y="182" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="197">0.000</text>
-<text x="0" y="225">dst_yager (tau=0.1, cal=specificity/sensitivity)</text>
+<text x="0" y="225">dst_dempster (tau=0.1, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="210" width="6" height="19" rx="2"/>
 <text class="v" x="880" y="225">0.013</text>
-<text x="0" y="253">dst_pcr6 (tau=0.1, cal=specificity/sensitivity)</text>
+<text x="0" y="253">dst_yager (tau=0.1, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="238" width="6" height="19" rx="2"/>
 <text class="v" x="880" y="253">0.013</text>
-<text x="0" y="281">dst_dempster (tau=0.1, cal=specificity/sensitivity)</text>
+<text x="0" y="281">dst_pcr6 (tau=0.1, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="266" width="6" height="19" rx="2"/>
 <text class="v" x="880" y="281">0.013</text>
 <text x="0" y="309">bks (tau=0.1)</text>

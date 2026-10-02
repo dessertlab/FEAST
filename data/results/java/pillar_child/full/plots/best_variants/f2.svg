@@ -14,13 +14,13 @@
 <text x="0" y="141">logistic_interactions (tau=0.4)</text>
 <rect class="bar" x="367" y="126" width="199" height="19" rx="2"/>
 <text class="v" x="880" y="141">0.396</text>
-<text x="0" y="169">dst_yager (tau=0.4, cal=specificity/sensitivity)</text>
+<text x="0" y="169">dst_pcr6 (tau=0.4, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="154" width="198" height="19" rx="2"/>
 <text class="v" x="880" y="169">0.395</text>
 <text x="0" y="197">dst_dempster (tau=0.4, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="182" width="198" height="19" rx="2"/>
 <text class="v" x="880" y="197">0.395</text>
-<text x="0" y="225">dst_pcr6 (tau=0.4, cal=specificity/sensitivity)</text>
+<text x="0" y="225">dst_yager (tau=0.4, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="210" width="198" height="19" rx="2"/>
 <text class="v" x="880" y="225">0.395</text>
 <text x="0" y="253">logistic_regression (tau=0.4)</text>

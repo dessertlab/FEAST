@@ -77,10 +77,10 @@
 <text x="0" y="729">dst_yager_fire_specificity_silence_sensitivity_tau_0_7</text>
 <rect class="bar" x="409" y="714" width="81" height="19" rx="2"/>
 <text class="v" x="880" y="729">0.176</text>
-<text x="0" y="757">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_8</text>
+<text x="0" y="757">weighted_fire_specificity_silence_sensitivity_tau_0_6</text>
 <rect class="bar" x="409" y="742" width="81" height="19" rx="2"/>
 <text class="v" x="880" y="757">0.176</text>
-<text x="0" y="785">weighted_fire_specificity_silence_sensitivity_tau_0_6</text>
+<text x="0" y="785">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_8</text>
 <rect class="bar" x="409" y="770" width="81" height="19" rx="2"/>
 <text class="v" x="880" y="785">0.176</text>
 <text x="0" y="813">decision_tree_tau_0_8</text>
@@ -95,13 +95,13 @@
 <text x="0" y="897">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_7</text>
 <rect class="bar" x="409" y="882" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="897">0.175</text>
-<text x="0" y="925">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_6</text>
+<text x="0" y="925">weighted_fire_specificity_silence_sensitivity_tau_0_5</text>
 <rect class="bar" x="409" y="910" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="925">0.174</text>
-<text x="0" y="953">weighted_fire_specificity_silence_sensitivity_tau_0_5</text>
+<text x="0" y="953">dst_yager_fire_specificity_silence_sensitivity_tau_0_6</text>
 <rect class="bar" x="409" y="938" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="953">0.174</text>
-<text x="0" y="981">dst_yager_fire_specificity_silence_sensitivity_tau_0_6</text>
+<text x="0" y="981">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_6</text>
 <rect class="bar" x="409" y="966" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="981">0.174</text>
 <text x="0" y="1009">or_1_of_4</text>
@@ -110,10 +110,10 @@
 <text x="0" y="1037">weighted_fire_specificity_silence_sensitivity_tau_0_9</text>
 <rect class="bar" x="409" y="1022" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="1037">0.174</text>
-<text x="0" y="1065">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_5</text>
+<text x="0" y="1065">dst_dempster_fire_specificity_silence_sensitivity_tau_0_5</text>
 <rect class="bar" x="409" y="1050" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="1065">0.174</text>
-<text x="0" y="1093">dst_dempster_fire_specificity_silence_sensitivity_tau_0_5</text>
+<text x="0" y="1093">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_5</text>
 <rect class="bar" x="409" y="1078" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="1093">0.174</text>
 <text x="0" y="1121">dst_yager_fire_specificity_silence_sensitivity_tau_0_5</text>
@@ -125,19 +125,19 @@
 <text x="0" y="1177">weighted_fire_specificity_silence_sensitivity_tau_0_2</text>
 <rect class="bar" x="409" y="1162" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="1177">0.173</text>
-<text x="0" y="1205">weighted_fire_specificity_silence_sensitivity_tau_0_3</text>
+<text x="0" y="1205">weighted_fire_specificity_silence_sensitivity_tau_0_4</text>
 <rect class="bar" x="409" y="1190" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="1205">0.173</text>
-<text x="0" y="1233">dst_dempster_fire_specificity_silence_sensitivity_tau_0_8</text>
+<text x="0" y="1233">dst_dempster_fire_specificity_silence_sensitivity_tau_0_7</text>
 <rect class="bar" x="409" y="1218" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="1233">0.173</text>
-<text x="0" y="1261">dst_dempster_fire_specificity_silence_sensitivity_tau_0_7</text>
+<text x="0" y="1261">dst_dempster_fire_specificity_silence_sensitivity_tau_0_8</text>
 <rect class="bar" x="409" y="1246" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="1261">0.173</text>
-<text x="0" y="1289">weighted_fire_specificity_silence_sensitivity_tau_0_4</text>
+<text x="0" y="1289">dst_dempster_fire_specificity_silence_sensitivity_tau_0_6</text>
 <rect class="bar" x="409" y="1274" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="1289">0.173</text>
-<text x="0" y="1317">dst_dempster_fire_specificity_silence_sensitivity_tau_0_6</text>
+<text x="0" y="1317">weighted_fire_specificity_silence_sensitivity_tau_0_3</text>
 <rect class="bar" x="409" y="1302" width="80" height="19" rx="2"/>
 <text class="v" x="880" y="1317">0.173</text>
 <text x="0" y="1345">naive_bayes_tau_0_2</text>
@@ -170,13 +170,13 @@
 <text x="0" y="1597">bks_tau_0_4</text>
 <rect class="bar" x="409" y="1582" width="69" height="19" rx="2"/>
 <text class="v" x="880" y="1597">0.151</text>
-<text x="0" y="1625">dst_dempster_fire_specificity_silence_sensitivity_tau_0_4</text>
+<text x="0" y="1625">dst_yager_fire_specificity_silence_sensitivity_tau_0_4</text>
 <rect class="bar" x="409" y="1610" width="65" height="19" rx="2"/>
 <text class="v" x="880" y="1625">0.142</text>
 <text x="0" y="1653">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_4</text>
 <rect class="bar" x="409" y="1638" width="65" height="19" rx="2"/>
 <text class="v" x="880" y="1653">0.142</text>
-<text x="0" y="1681">dst_yager_fire_specificity_silence_sensitivity_tau_0_4</text>
+<text x="0" y="1681">dst_dempster_fire_specificity_silence_sensitivity_tau_0_4</text>
 <rect class="bar" x="409" y="1666" width="65" height="19" rx="2"/>
 <text class="v" x="880" y="1681">0.142</text>
 <text x="0" y="1709">naive_bayes_tau_0_5</text>
@@ -245,13 +245,13 @@
 <text x="0" y="2297">decision_tree_tau_0_4</text>
 <rect class="bar" x="409" y="2282" width="35" height="19" rx="2"/>
 <text class="v" x="880" y="2297">0.077</text>
-<text x="0" y="2325">dst_yager_fire_specificity_silence_sensitivity_tau_0_2</text>
+<text x="0" y="2325">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_2</text>
 <rect class="bar" x="409" y="2310" width="33" height="19" rx="2"/>
 <text class="v" x="880" y="2325">0.073</text>
-<text x="0" y="2353">dst_dempster_fire_specificity_silence_sensitivity_tau_0_2</text>
+<text x="0" y="2353">dst_yager_fire_specificity_silence_sensitivity_tau_0_2</text>
 <rect class="bar" x="409" y="2338" width="33" height="19" rx="2"/>
 <text class="v" x="880" y="2353">0.073</text>
-<text x="0" y="2381">dst_pcr6_fire_specificity_silence_sensitivity_tau_0_2</text>
+<text x="0" y="2381">dst_dempster_fire_specificity_silence_sensitivity_tau_0_2</text>
 <rect class="bar" x="409" y="2366" width="33" height="19" rx="2"/>
 <text class="v" x="880" y="2381">0.073</text>
 <text x="0" y="2409">decision_tree_tau_0_9</text>
@@ -323,19 +323,19 @@
 <text x="0" y="3025">xgboost_tau_0_1</text>
 <rect class="bar" x="409" y="3010" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="3025">0.000</text>
-<text x="0" y="3053">bks_tau_0_9</text>
+<text x="0" y="3053">logistic_regression_tau_0_1</text>
 <rect class="bar" x="409" y="3038" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="3053">0.000</text>
-<text x="0" y="3081">logistic_regression_tau_0_1</text>
+<text x="0" y="3081">logistic_interactions_tau_0_1</text>
 <rect class="bar" x="409" y="3066" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="3081">0.000</text>
-<text x="0" y="3109">logistic_interactions_tau_0_1</text>
+<text x="0" y="3109">bks_tau_0_9</text>
 <rect class="bar" x="409" y="3094" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="3109">0.000</text>
-<text x="0" y="3137">random_forest_tau_0_2</text>
+<text x="0" y="3137">random_forest_tau_0_1</text>
 <rect class="bar" x="409" y="3122" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="3137">-0.000</text>
-<text x="0" y="3165">random_forest_tau_0_1</text>
+<text x="0" y="3165">random_forest_tau_0_2</text>
 <rect class="bar" x="409" y="3150" width="2" height="19" rx="2"/>
 <text class="v" x="880" y="3165">-0.000</text>
 <text x="0" y="3193">decision_tree_tau_0_1</text>

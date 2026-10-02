@@ -20,13 +20,13 @@
 <text x="0" y="197">xgboost (tau=0.3)</text>
 <rect class="bar" x="367" y="182" width="158" height="19" rx="2"/>
 <text class="v" x="880" y="197">0.316</text>
-<text x="0" y="225">dst_pcr6 (tau=0.3, cal=specificity/sensitivity)</text>
+<text x="0" y="225">dst_dempster (tau=0.3, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="210" width="157" height="19" rx="2"/>
 <text class="v" x="880" y="225">0.314</text>
 <text x="0" y="253">dst_yager (tau=0.3, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="238" width="157" height="19" rx="2"/>
 <text class="v" x="880" y="253">0.314</text>
-<text x="0" y="281">dst_dempster (tau=0.3, cal=specificity/sensitivity)</text>
+<text x="0" y="281">dst_pcr6 (tau=0.3, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="266" width="157" height="19" rx="2"/>
 <text class="v" x="880" y="281">0.314</text>
 <text x="0" y="309">bks (tau=0.1)</text>

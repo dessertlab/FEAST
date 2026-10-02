@@ -26,10 +26,10 @@
 <text x="0" y="253">dst_yager (tau=0.9, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="238" width="88" height="19" rx="2"/>
 <text class="v" x="880" y="253">0.177</text>
-<text x="0" y="281">dst_pcr6 (tau=0.8, cal=specificity/sensitivity)</text>
+<text x="0" y="281">weighted (tau=0.6, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="266" width="88" height="19" rx="2"/>
 <text class="v" x="880" y="281">0.176</text>
-<text x="0" y="309">weighted (tau=0.6, cal=specificity/sensitivity)</text>
+<text x="0" y="309">dst_pcr6 (tau=0.8, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="294" width="88" height="19" rx="2"/>
 <text class="v" x="880" y="309">0.176</text>
 <text x="0" y="337">or_1_of_4</text>

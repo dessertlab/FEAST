@@ -35,10 +35,10 @@
 <text x="0" y="337">tool:semgrep</text>
 <rect class="bar" x="367" y="322" width="11" height="19" rx="2"/>
 <text class="v" x="880" y="337">0.023</text>
-<text x="0" y="365">dst_yager (tau=0.9, cal=specificity/sensitivity)</text>
+<text x="0" y="365">weighted (tau=0.9, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="350" width="17" height="19" rx="2"/>
 <text class="v" x="880" y="365">0.035</text>
-<text x="0" y="393">weighted (tau=0.9, cal=specificity/sensitivity)</text>
+<text x="0" y="393">dst_yager (tau=0.9, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="378" width="17" height="19" rx="2"/>
 <text class="v" x="880" y="393">0.035</text>
 <text x="0" y="421">dst_pcr6 (tau=0.9, cal=specificity/sensitivity)</text>

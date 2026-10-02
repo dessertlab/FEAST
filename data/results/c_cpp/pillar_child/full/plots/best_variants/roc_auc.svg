@@ -32,10 +32,10 @@
 <text x="0" y="309">decision_tree (tau=0.1)</text>
 <rect class="bar" x="367" y="294" width="269" height="19" rx="2"/>
 <text class="v" x="880" y="309">0.536</text>
-<text x="0" y="337">traditional_3_of_6</text>
+<text x="0" y="337">traditional_2_of_6</text>
 <rect class="bar" x="367" y="322" width="269" height="19" rx="2"/>
 <text class="v" x="880" y="337">0.535</text>
-<text x="0" y="365">traditional_2_of_6</text>
+<text x="0" y="365">traditional_3_of_6</text>
 <rect class="bar" x="367" y="350" width="269" height="19" rx="2"/>
 <text class="v" x="880" y="365">0.535</text>
 <text x="0" y="393">or_1_of_6</text>

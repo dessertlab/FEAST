@@ -8,10 +8,10 @@
 <text x="0" y="85">or_1_of_4</text>
 <rect class="bar" x="367" y="70" width="468" height="19" rx="2"/>
 <text class="v" x="880" y="85">0.932</text>
-<text x="0" y="113">weighted (tau=0.1, cal=specificity/sensitivity)</text>
+<text x="0" y="113">dst_dempster (tau=0.6, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="98" width="468" height="19" rx="2"/>
 <text class="v" x="880" y="113">0.932</text>
-<text x="0" y="141">dst_dempster (tau=0.6, cal=specificity/sensitivity)</text>
+<text x="0" y="141">weighted (tau=0.1, cal=specificity/sensitivity)</text>
 <rect class="bar" x="367" y="126" width="468" height="19" rx="2"/>
 <text class="v" x="880" y="141">0.932</text>
 <text x="0" y="169">dst_pcr6 (tau=0.7, cal=specificity/sensitivity)</text>
