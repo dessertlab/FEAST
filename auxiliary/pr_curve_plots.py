@@ -35,8 +35,8 @@ Reading the figure
   the baseline as a tau=NaN row, so any claim about the curves can be rechecked without
   re-running the fusion.
 * **The area under these curves is NOT the PR-AUC.** The scalar PR-AUC reported elsewhere
-  is the support-weighted mean of each family's average precision, a different quantity.
-  It is shown per strategy in the legend; the area itself is deliberately not quantified.
+  is the support-weighted mean of each family's average precision, a different quantity
+  (see ``auxiliary/pr_auc_ci_report.py``); the area itself is deliberately not quantified.
 
 This re-runs calibration + fusion from scratch (raw per-row scores are not persisted by
 the main pipeline) using the same 5-fold split, tools and family set as
@@ -48,11 +48,13 @@ happens on the pipeline's own {0.1..0.9} grid, in the pipeline.
 
     uv run python auxiliary/pr_curve_plots.py --lang all
     uv run python auxiliary/pr_curve_plots.py --lang java --tau-step 0.01
+    uv run python auxiliary/pr_curve_plots.py --from-points   # redraw only, no fusion re-run
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -210,8 +212,8 @@ def _collect(language: str, tier: str, n_splits: int, seed: int) -> dict:
         fuser_rows = predictions[predictions["strategy"].isin(fusers)]
         per_fold_scores.append(fuser_rows[["base_strategy", "family", "label", "score"]].copy())
 
-        # PR-AUC (tau-independent) and the baselines' single operating point come from the
-        # pipeline's own scorer, grouped per (strategy, family) as everywhere else.
+        # The baselines' single operating point comes from the pipeline's own scorer,
+        # grouped per (strategy, family) as everywhere else.
         metrics = evaluate_predictions(
             predictions.assign(strategy=predictions["base_strategy"]),
             group_cols=("strategy", "family"),
@@ -239,28 +241,20 @@ def make_pr_curve_figure(
     tau_step: float = 0.02,
     use_sans: bool = True,
 ) -> list[Path]:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.lines import Line2D
-
+    """Re-run the folds, persist the curve points, then draw the figure from them."""
     taus = _fine_taus(tau_step)
     collected = {lang: _collect(lang, tier, n_splits, seed) for lang in languages}
-    curves = {
-        lang: _curve_points(data["per_fold_scores"], taus)
-        for lang, data in collected.items()
-    }
 
     # Persist the points before drawing: a figure cannot be checked, and every claim made
     # about these curves (which operating points exist, whether any of them dominates the
     # baseline) has to be answerable without re-running the fusion to recover the scores.
     points = []
-    for lang, curve in curves.items():
-        frame = curve.copy()
+    for lang, data in collected.items():
+        frame = _curve_points(data["per_fold_scores"], taus)
         frame.insert(0, "language", lang)
-        baseline = collected[lang]["baseline"]
-        if baseline is not None and baseline in collected[lang]["overall"].index:
-            row = collected[lang]["overall"].loc[baseline]
+        baseline = data["baseline"]
+        if baseline is not None and baseline in data["overall"].index:
+            row = data["overall"].loc[baseline]
             frame = pd.concat([frame, pd.DataFrame([{
                 "language": lang, "base_strategy": baseline, "tau": float("nan"),
                 "recall": row["recall_weighted"], "precision": row["precision_weighted"],
@@ -272,10 +266,80 @@ def make_pr_curve_figure(
     points_table.to_csv(points_path, index=False)
     print(f"wrote {points_path}  ({len(points_table)} punti)")
 
+    tools = {lang: data["tools"] for lang, data in collected.items()}
+    pr_auc = {
+        lang: _pr_auc_by_base(data["overall"]["pr_auc_weighted"]) for lang, data in collected.items()
+    }
+    return [points_path, *_draw_figure(points_table, languages, tools, pr_auc, results_root, use_sans)]
+
+
+def redraw_from_points(languages: list[str], results_root: Path, *, tier: str = "full",
+                       use_sans: bool = True) -> list[Path]:
+    """Redraw the figure from the persisted points, without re-running the fusion.
+
+    The curves come from ``pr_curve_weighted_points.csv``; the tool list and the PR-AUC
+    come from each language's pipeline outputs (``config.json`` and
+    ``fusion_metrics_overall.csv``), i.e. the same numbers the paper's tables report.
+    """
+    points_table = pd.read_csv(results_root / "pr_curve_weighted_points.csv")
+    tools, pr_auc = {}, {}
+    for lang in languages:
+        run_dir = results_root / lang / "pillar_child" / tier
+        tools[lang] = json.loads((run_dir / "config.json").read_text())["tools"]
+        overall = pd.read_csv(run_dir / "fusion_metrics_overall.csv").set_index("strategy")
+        pr_auc[lang] = _pr_auc_by_base(overall["pr_auc_weighted"])
+    return _draw_figure(points_table, languages, tools, pr_auc, results_root, use_sans)
+
+
+def _pr_auc_by_base(pr_auc_weighted: pd.Series) -> dict[str, float]:
+    """Support-weighted PR-AUC per base strategy.
+
+    PR-AUC is the average precision of the continuous score, which does not depend on tau,
+    so every tau variant of a base strategy carries the same value and any one of them
+    stands for the base.
+    """
+    out: dict[str, float] = {}
+    for strategy, value in pr_auc_weighted.items():
+        out.setdefault(split_tau_strategy(str(strategy))[0], float(value))
+    return out
+
+
+def _pr_auc_text(base: str, languages: list[str], pr_auc: dict[str, dict[str, float]]) -> str:
+    values = [
+        f"{LANG_TITLES.get(lang, lang)} {pr_auc[lang][base]:.3f}"
+        for lang in languages
+        if base in pr_auc[lang] and not np.isnan(pr_auc[lang][base])
+    ]
+    return f"PR-AUC: {' · '.join(values)}" if values else ""
+
+
+def _draw_figure(
+    points_table: pd.DataFrame,
+    languages: list[str],
+    tools: dict[str, list[str]],
+    pr_auc: dict[str, dict[str, float]],
+    results_root: Path,
+    use_sans: bool,
+) -> list[Path]:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+
+    is_baseline_row = points_table["tau"].isna()
+    curves = {
+        lang: points_table[(points_table["language"] == lang) & ~is_baseline_row]
+        for lang in languages
+    }
+    baselines = {
+        lang: points_table[(points_table["language"] == lang) & is_baseline_row]
+        for lang in languages
+    }
+
     ordered_bases: list[str] = []
     for lang, curve in curves.items():
         present = list(curve["base_strategy"].unique())
-        for strategy in canonical_strategy_order(collected[lang]["tools"], present):
+        for strategy in canonical_strategy_order(tools[lang], present):
             if strategy not in ordered_bases:
                 ordered_bases.append(strategy)
     colors = {b: FALLBACK_COLORS[i % len(FALLBACK_COLORS)] for i, b in enumerate(ordered_bases)}
@@ -283,12 +347,12 @@ def make_pr_curve_figure(
 
     rc = rc_style(use_sans, {"font.size": 10})
     with plt.rc_context(rc):
-        fig, axes = plt.subplots(1, len(languages), figsize=(4.4 * len(languages), 6.4),
+        fig, axes = plt.subplots(1, len(languages), figsize=(4.4 * len(languages), 7.4),
                                  sharex=True, sharey=True)
         axes = np.atleast_1d(axes)
 
         for ax, lang in zip(axes, languages, strict=True):
-            data, curve = collected[lang], curves[lang]
+            curve = curves[lang]
             for base in ordered_bases:
                 points = curve[curve["base_strategy"] == base]
                 if points.empty:
@@ -307,10 +371,8 @@ def make_pr_curve_figure(
                 ax.plot(reported["recall"], reported["precision"], color=colors[base],
                         linestyle="none", marker="o", markersize=3.6, alpha=0.95, zorder=4)
 
-            baseline = data["baseline"]
-            if baseline is not None and baseline in data["overall"].index:
-                row = data["overall"].loc[baseline]
-                ax.plot(row["recall_weighted"], row["precision_weighted"], marker="X",
+            for row in baselines[lang].itertuples():
+                ax.plot(row.recall, row.precision, marker="X",
                         markersize=11, color="#000000", linestyle="none", zorder=6,
                         markeredgecolor="#FFFFFF", markeredgewidth=0.9)
 
@@ -325,39 +387,36 @@ def make_pr_curve_figure(
 
         handles = []
         for base in ordered_bases:
-            aucs = [
-                collected[lang]["overall"].loc[base, "pr_auc_weighted"]
-                for lang in languages
-                if base in collected[lang]["overall"].index
-            ]
-            auc_text = f"  (PR-AUC {np.nanmean(aucs):.3f})" if aucs else ""
+            auc_text = _pr_auc_text(base, languages, pr_auc)
+            label = f"{strategy_label(base)} — {auc_text}" if auc_text else strategy_label(base)
             handles.append(Line2D([], [], color=colors[base], linestyle=dashes[base],
-                                  linewidth=1.5, label=f"{strategy_label(base)}{auc_text}"))
+                                  linewidth=1.5, label=label))
+        # The baseline's PR-AUC is that of its own score, the fraction of tools that fire,
+        # so it covers every K-of-N rule, not only the 2ooN point drawn on the axes.
+        baseline_names = {lang: baselines[lang]["base_strategy"].iloc[0]
+                          for lang in languages if not baselines[lang].empty}
+        baseline_auc = " · ".join(
+            f"{LANG_TITLES.get(lang, lang)} {pr_auc[lang][name]:.3f}"
+            for lang, name in baseline_names.items() if name in pr_auc[lang]
+        )
+        baseline_label = "2ooN baseline (single operating point)"
+        if baseline_auc:
+            baseline_label = f"2ooN baseline — PR-AUC (vote fraction): {baseline_auc}"
         handles.append(Line2D([], [], color="#000000", marker="X", linestyle="none",
-                              markersize=9, label="2ooN baseline (single operating point)"))
-        # Reserve the bottom strip for legend + caption instead of pushing them below the
+                              markersize=9, label=baseline_label))
+        # Reserve the bottom strip for the legend instead of pushing it below the
         # figure with negative offsets, which bbox_inches="tight" turns into a huge
         # white band and a squashed set of axes.
-        n_legend_rows = -(-len(handles) // 3)
-        bottom = min(0.46, 0.16 + 0.035 * n_legend_rows)
+        # Each legend entry carries the per-language PR-AUC on one line, so two wide
+        # columns; the strip is sized per row and hangs from just under the x-axis labels.
+        n_legend_cols = 2
+        n_legend_rows = -(-len(handles) // n_legend_cols)
+        xlabel_h, row_h = 0.035, 0.03
+        bottom = xlabel_h + row_h * n_legend_rows
         fig.tight_layout(rect=(0.0, bottom, 1.0, 1.0))
-        fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, bottom - 0.145),
-                   ncol=3, frameon=False, fontsize=8.5)
-        fig.text(
-            0.5, 0.012,
-            "Each point is the support-weighted (recall, precision) across CWE families at one threshold "
-            "tau in [0.1, 0.9] — the same two-stage aggregation as every headline number.\n"
-            "At the low-recall end, families the strategy has gone silent on enter the mean as precision "
-            "0.0, so that end reads as coverage loss, not imprecision.\n"
-            "Markers are the taus the pipeline reports; the segments between them are drawn, not "
-            "measured, and are long where the fusion scores are discrete.\n"
-            "The area under these curves is not the PR-AUC: the legend's scalar is the support-weighted "
-            "mean of each family's average precision, averaged over languages.",
-            ha="center", va="bottom", fontsize=7.5, color="#555555", style="italic",
-            wrap=True,
-        )
-
-        written: list[Path] = [points_path]
+        fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, bottom - xlabel_h),
+                   ncol=n_legend_cols, columnspacing=3.0, frameon=False, fontsize=8.5)
+        written: list[Path] = []
         for suffix, kwargs in ((".svg", {}), (".png", {"dpi": 200})):
             path = results_root / f"pr_curve_weighted{suffix}"
             fig.savefig(path, bbox_inches="tight", **kwargs)
@@ -379,9 +438,15 @@ def main() -> None:
                          "own reported grid stays at 0.1 and is unaffected)")
     ap.add_argument("--serif", action="store_true", help="use a serif font (paper style)")
     ap.add_argument("--results-dir", type=str, default="data/results")
+    ap.add_argument("--from-points", action="store_true",
+                    help="redraw from the persisted pr_curve_weighted_points.csv instead of "
+                         "re-running calibration + fusion (needs only data/results)")
     args = ap.parse_args()
 
     langs = ["c_cpp", "java", "python"] if args.lang == "all" else [args.lang]
+    if args.from_points:
+        redraw_from_points(langs, Path(args.results_dir), tier=args.tier, use_sans=not args.serif)
+        return
     make_pr_curve_figure(langs, Path(args.results_dir), tier=args.tier, n_splits=args.n_splits,
                          seed=args.seed, tau_step=args.tau_step, use_sans=not args.serif)
 
