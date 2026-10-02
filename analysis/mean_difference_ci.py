@@ -13,18 +13,31 @@ Rationale for switching:
 
 Statistical procedure:
   For each (strategy, baseline) pair, a vector of N per-family paired differences d_i is
-  computed (N = number of surviving CWE families).
+  computed (N = number of surviving CWE families). Zero differences are dropped first
+  (matching scipy's default ``zero_method="wilcox"``): the p-value, the Hodges-Lehmann
+  estimate and the CI are all computed on the same n_nonzero <= N differences, so
+  ``n_nonzero_pairs`` (reported next to ``n_pairs``) is the test's real basis. A family
+  where neither the strategy nor the baseline detects anything differs by exactly 0: it
+  says nothing about which of the two is better, but it does shrink that basis.
   - **Test statistic**: scipy ``wilcoxon(d, alternative='two-sided', method='auto')``.
-    With N<=25 the exact distribution is used; otherwise the normal approximation applies.
-  - **Point estimate**: Hodges-Lehmann estimator — median of all N(N+1)/2 Walsh averages
-    (d_i + d_j)/2, i<=j.  This is the natural point estimate dual to the Wilcoxon test.
-  - **95% CI**: achieved-level CI via the Walsh-average approach (scipy>=1.11 exposes
-    ``wilcoxon`` confidence_level).  For older scipy this is approximated by
-    ±1.96*(IQR / 1.349) / sqrt(N) (normal-approximation on the ranks).
-  - **Zero differences**: discarded by the test (scipy's default ``zero_method``), so
-    ``n_nonzero_pairs`` is reported next to ``n_pairs``. A family where neither the
-    strategy nor the baseline detects anything differs by exactly 0: it says nothing
-    about which of the two is better, but it does shrink the test's basis.
+    With n_nonzero<=25 and no ties the exact distribution is used; otherwise the normal
+    approximation applies.
+  - **Point estimate**: Hodges-Lehmann estimator — median of all n_nonzero(n_nonzero+1)/2
+    Walsh averages (d_i + d_j)/2, i<=j. This is the natural point estimate dual to the
+    Wilcoxon test.
+  - **95% CI**: the classic Walsh-average interval (Hollander & Wolfe, *Nonparametric
+    Statistical Methods*): sort the Walsh averages and take the pair of order statistics
+    whose rank is set by the alpha/2 quantile of the null distribution of the signed-rank
+    statistic W+. That null distribution is computed exactly, via the standard subset-sum
+    recursion, when n_nonzero<=25 with no ties among |d_i|; otherwise a normal
+    approximation with the usual tie correction is used -- mirroring the same exact/
+    asymptotic split scipy's own ``method="auto"`` makes for the p-value, so by
+    construction the CI excludes 0 iff the two-sided p-value is below alpha. (Note: scipy
+    itself has never exposed a ``confidence_level``/``.confidence_interval`` for
+    ``wilcoxon`` in any released version -- an earlier revision of this function assumed
+    it existed under a ``try/except TypeError``, which meant the CI silently always fell
+    through to a normal approximation with an incorrect standard error, regardless of the
+    installed scipy version.)
   - **Status**: identical classification logic as the t-test version: if the entire CI
     lies above 0 the strategy is classified as a statistically significant improvement;
     if entirely below 0, a degradation; otherwise inconclusive.
@@ -71,55 +84,113 @@ STATUS_STYLES = {
 }
 
 
+def _exact_wplus_cdf(n: int) -> list[float]:
+    """P(W+ <= s) for s=0..n(n+1)/2 under H0, no ties, via the subset-sum recursion.
+
+    W+ is the sum of ranks 1..n assigned to the positive differences; under H0 every one
+    of the 2**n sign patterns is equally likely, so dp[s] (subsets of {1..n} summing to s)
+    gives the exact null distribution -- the same recursion scipy uses internally for the
+    exact Wilcoxon p-value.
+    """
+    max_sum = n * (n + 1) // 2
+    dp = [0] * (max_sum + 1)
+    dp[0] = 1
+    for rank in range(1, n + 1):
+        for s in range(max_sum, rank - 1, -1):
+            dp[s] += dp[s - rank]
+    total = 2**n
+    cdf = []
+    cumulative = 0
+    for count in dp:
+        cumulative += count
+        cdf.append(cumulative / total)
+    return cdf
+
+
+def _walsh_rank(cdf: Sequence[float], m: int, alpha: float) -> int:
+    """Largest 1-indexed rank c such that (w_(c), w_(m+1-c)) has level >= 1-alpha.
+
+    ``cdf`` is P(W+ <= k) for k=0..m (m = n(n+1)/2, matching the Walsh-average count).
+    Finds the largest k with cdf[k] <= alpha/2; c = k+1. When no such k exists (the
+    discrete null distribution can't reach alpha/2 at this n -- the same limitation noted
+    above for N=5 exact tests), falls back to c=1, i.e. the full observed range of Walsh
+    averages as the most conservative interval available.
+    """
+    half_alpha = alpha / 2.0
+    k_star = -1
+    for k, value in enumerate(cdf):
+        if value <= half_alpha:
+            k_star = k
+        else:
+            break
+    c = k_star + 1 if k_star >= 0 else 1
+    # Keep the two order-statistic indices from crossing (only possible at tiny n where
+    # the discrete distribution is coarse relative to m).
+    return max(1, min(c, (m + 1) // 2))
+
+
+def _asymptotic_walsh_rank(n: int, abs_d: "object", alpha: float, m: int) -> int:
+    """Normal-approximation counterpart of ``_walsh_rank`` for n>25 or tied |d_i|.
+
+    Mirrors the tie-corrected normal approximation scipy's ``wilcoxon`` uses for the
+    p-value when ``method="auto"`` falls back to the asymptotic branch.
+    """
+    import numpy as np
+    from scipy.stats import norm
+
+    mu = n * (n + 1) / 4.0
+    var = n * (n + 1) * (2 * n + 1) / 24.0
+    _values, counts = np.unique(abs_d, return_counts=True)
+    tie_sizes = counts[counts > 1]
+    if len(tie_sizes):
+        var -= float(((tie_sizes**3 - tie_sizes) / 48.0).sum())
+    sigma = sqrt(max(var, 0.0))
+    if sigma == 0:
+        return 1
+    z = norm.ppf(alpha / 2.0)
+    k_star = int((mu + z * sigma - 0.5) // 1)
+    c = k_star + 1 if k_star >= 0 else 1
+    return max(1, min(c, (m + 1) // 2))
+
+
 def _wilcoxon_ci(
     diffs: "pd.Series",
     confidence_level: float = 0.95,
 ) -> tuple[float, float, float, float]:
-    """Hodges-Lehmann point estimate and Walsh-average CI via Wilcoxon signed-rank test.
+    """Hodges-Lehmann point estimate and Walsh-average CI via the Wilcoxon signed-rank test.
 
-    Returns (p_value, hl_estimate, ci_low, ci_high).
-    For N <= 1 all values are NaN.
-    For N == 2 the Wilcoxon test cannot be computed (degenerate); falls back to
-    midpoint ± half-range as a trivial interval.
+    Returns (p_value, hl_estimate, ci_low, ci_high). Zero differences are dropped first
+    (matching scipy's default ``zero_method="wilcox"``) so the p-value, the HL estimate
+    and the CI share the same n_nonzero basis. For n_nonzero <= 1 all values are NaN --
+    see the module docstring for the exact/asymptotic CI construction.
     """
     import numpy as np
     from scipy.stats import wilcoxon
 
-    d = diffs.dropna().to_numpy(dtype=float)
+    d_all = diffs.dropna().to_numpy(dtype=float)
+    d = d_all[d_all != 0]
     n = len(d)
     if n <= 1:
         return float("nan"), float("nan"), float("nan"), float("nan")
 
-    # Hodges-Lehmann estimator: median of Walsh averages (d_i + d_j)/2, i<=j
+    result = wilcoxon(d, alternative="two-sided", method="auto")
+    p_value = float(result.pvalue)
+
     idx = np.triu_indices(n)
-    walsh = (d[idx[0]] + d[idx[1]]) / 2.0
+    walsh = np.sort((d[idx[0]] + d[idx[1]]) / 2.0)
+    m = len(walsh)
     hl = float(np.median(walsh))
 
-    if n == 2:
-        # Wilcoxon requires at least 2 non-zero differences but with n=2 it is
-        # degenerate (only 1 possible rank permutation per sign). Return a
-        # trivial interval based on the observed range.
-        ci_low = float(walsh.min())
-        ci_high = float(walsh.max())
-        return float("nan"), hl, ci_low, ci_high
+    alpha = 1.0 - confidence_level
+    abs_d = np.abs(d)
+    has_ties = len(np.unique(abs_d)) < n
+    if n <= 25 and not has_ties:
+        c = _walsh_rank(_exact_wplus_cdf(n), m, alpha)
+    else:
+        c = _asymptotic_walsh_rank(n, abs_d, alpha, m)
 
-    # scipy >= 1.11: wilcoxon accepts confidence_level and returns ci
-    try:
-        result = wilcoxon(d, alternative="two-sided", method="auto",
-                          confidence_level=confidence_level)
-        p_value = float(result.pvalue)
-        ci = result.confidence_interval
-        ci_low = float(ci.low)
-        ci_high = float(ci.high)
-    except TypeError:
-        # Older scipy: compute p-value only; approximate CI via normal approx on Walsh averages
-        result = wilcoxon(d, alternative="two-sided", method="auto")
-        p_value = float(result.pvalue)
-        walsh_std = float(walsh.std(ddof=1))
-        margin = 1.96 * walsh_std / sqrt(len(walsh))
-        ci_low = hl - margin
-        ci_high = hl + margin
-
+    ci_low = float(walsh[c - 1])
+    ci_high = float(walsh[m - c])
     return p_value, hl, ci_low, ci_high
 
 

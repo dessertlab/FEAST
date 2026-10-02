@@ -155,8 +155,8 @@ def main() -> None:
                 if r["pattern"] in patterns and r["count"] > 0:
                     grid[fams.index(r["family"]), patterns.index(r["pattern"])] = r["count"]
 
-            fig, ax = plt.subplots(figsize=(max(6, len(patterns) * 0.62 + 2),
-                                            max(3, len(fams) * 0.42 + 1.6)))
+            fig, ax = plt.subplots(figsize=(max(6, len(patterns) * 1.05 + 2.5),
+                                            max(3, len(fams) * 0.65 + 1.8)))
             cmap = plt.get_cmap("viridis").with_extremes(bad="#f2f2f2")
             im = ax.imshow(np.log10(grid), aspect="auto", cmap=cmap)
             # Annotate each populated cell: on this data the interesting quantity is how
@@ -166,17 +166,15 @@ def main() -> None:
                     if not np.isnan(grid[i, j]):
                         v = int(grid[i, j])
                         ax.text(j, i, f"{v:,}" if v < 10000 else f"{v/1000:.0f}k",
-                                ha="center", va="center", fontsize=6,
+                                ha="center", va="center", fontsize=13,
                                 color="#000000" if np.log10(v) > 3.2 else "#ffffff")
             ax.set_xticks(range(len(patterns)))
-            ax.set_xticklabels(patterns, rotation=90, fontsize=7, family="monospace")
+            ax.set_xticklabels(patterns, rotation=90, fontsize=14, family="monospace")
             ax.set_yticks(range(len(fams)))
-            ax.set_yticklabels(fams, fontsize=8)
-            ax.set_xlabel("fire pattern (bit i = tool i fired);  grey = never observed")
-            ax.set_title(f"{lang}: BKS cell population — {len(patterns)} of "
-                         f"{len(patterns) + n_dropped} cells ever observed "
-                         f"({n_dropped} never populated in any family)", fontsize=10)
-            fig.colorbar(im, ax=ax, label="log10(samples in cell)")
+            ax.set_yticklabels(fams, fontsize=15)
+            cbar = fig.colorbar(im, ax=ax, label="log10(samples in cell)")
+            cbar.ax.tick_params(labelsize=12)
+            cbar.set_label("log10(samples in cell)", fontsize=13)
             fig.tight_layout()
             out_path = out_dir / f"bks_pattern_heatmap_{lang}.png"
             fig.savefig(out_path, dpi=150)
