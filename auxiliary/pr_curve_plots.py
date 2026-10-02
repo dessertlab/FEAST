@@ -345,9 +345,10 @@ def _draw_figure(
     colors = {b: FALLBACK_COLORS[i % len(FALLBACK_COLORS)] for i, b in enumerate(ordered_bases)}
     dashes = {b: ["-", "--", "-.", ":"][i // len(FALLBACK_COLORS) % 4] for i, b in enumerate(ordered_bases)}
 
+    fig_height = 6.0
     rc = rc_style(use_sans, {"font.size": 10})
     with plt.rc_context(rc):
-        fig, axes = plt.subplots(1, len(languages), figsize=(4.4 * len(languages), 7.4),
+        fig, axes = plt.subplots(1, len(languages), figsize=(4.4 * len(languages), fig_height),
                                  sharex=True, sharey=True)
         axes = np.atleast_1d(axes)
 
@@ -391,19 +392,8 @@ def _draw_figure(
             label = f"{strategy_label(base)} — {auc_text}" if auc_text else strategy_label(base)
             handles.append(Line2D([], [], color=colors[base], linestyle=dashes[base],
                                   linewidth=1.5, label=label))
-        # The baseline's PR-AUC is that of its own score, the fraction of tools that fire,
-        # so it covers every K-of-N rule, not only the 2ooN point drawn on the axes.
-        baseline_names = {lang: baselines[lang]["base_strategy"].iloc[0]
-                          for lang in languages if not baselines[lang].empty}
-        baseline_auc = " · ".join(
-            f"{LANG_TITLES.get(lang, lang)} {pr_auc[lang][name]:.3f}"
-            for lang, name in baseline_names.items() if name in pr_auc[lang]
-        )
-        baseline_label = "2ooN baseline (single operating point)"
-        if baseline_auc:
-            baseline_label = f"2ooN baseline — PR-AUC (vote fraction): {baseline_auc}"
         handles.append(Line2D([], [], color="#000000", marker="X", linestyle="none",
-                              markersize=9, label=baseline_label))
+                              markersize=9, label="2ooN baseline (single operating point)"))
         # Reserve the bottom strip for the legend instead of pushing it below the
         # figure with negative offsets, which bbox_inches="tight" turns into a huge
         # white band and a squashed set of axes.
@@ -411,7 +401,9 @@ def _draw_figure(
         # columns; the strip is sized per row and hangs from just under the x-axis labels.
         n_legend_cols = 2
         n_legend_rows = -(-len(handles) // n_legend_cols)
-        xlabel_h, row_h = 0.035, 0.03
+        # Spacing in inches, converted to figure fractions, so the legend keeps its size
+        # whatever the figure height.
+        xlabel_h, row_h = 0.26 / fig_height, 0.22 / fig_height
         bottom = xlabel_h + row_h * n_legend_rows
         fig.tight_layout(rect=(0.0, bottom, 1.0, 1.0))
         fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, bottom - xlabel_h),
